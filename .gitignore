@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Streamlit secrets — NIKDY ne commitovať!
+.streamlit/secrets.toml
+.streamlit/seacrets.toml
+
+# Dokumenty a lokálne artefakty
+*.docx
+*.xlsx
+!config/*.xlsx
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Rozne temp
+*.log
