@@ -59,6 +59,12 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
             with col2:
                 umiestnenie = st.text_input("Umiestnenie (Hala / Stanovište):", placeholder="Napr. Hala A - expedícia")
 
+            col_id1, col_id2 = st.columns(2)
+            with col_id1:
+                evidencne_cislo = st.text_input("Evidenčné číslo:", placeholder="Napr. 1042")
+            with col_id2:
+                cislo_vybavenia = st.text_input("Číslo vybavenia:", placeholder="Napr. 17")
+
             st.markdown("---")
             st.subheader("Zadajte dátumy posledných vykonaných kontrol a ich periódy:")
 
@@ -113,6 +119,8 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
             pripravene_novy_stroj = {
                 "nazov": nazov.strip(),
                 "umiestnenie": umiestnenie.strip() if umiestnenie else None,
+                "evidencne_cislo": evidencne_cislo.strip() if evidencne_cislo else None,
+                "cislo_vybavenia": cislo_vybavenia.strip() if cislo_vybavenia else None,
                 "posledna_revizia": p_revizia.isoformat() if p_revizia else None,
                 "nasledujuca_revizia": n_rev.isoformat() if n_rev else None,
                 "posledna_revizna_skuska": p_revizna_sk.isoformat() if p_revizna_sk else None,
