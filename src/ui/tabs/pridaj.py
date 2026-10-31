@@ -104,6 +104,14 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
             if ma_geometriu:
                 p_geometria = st.date_input("Posledné Geometrické zameranie dráhy:", None)
 
+            st.markdown("---")
+            st.markdown("**Poznámka k stroju**")
+            poznamka = st.text_area(
+                "Poznámka (napr. stroj v poruche, dôvod nevykonania kontroly):",
+                placeholder="Napr. Stroj v poruche od 12.05.2026 - čaká sa na náhradný diel.",
+            )
+            datum_poznamky = st.date_input("Dátum poznámky:", None)
+
             tlacidlo_ulozit = st.form_submit_button("Uložiť stroj a vypočítať revízie")
 
         # --- SPRACOVANIE FORMULÁRA PO STLAČENÍ ULOŽIŤ ---
@@ -138,6 +146,8 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                 "vykonava_sa_geometria": ma_geometriu,
                 "posledna_geometria": p_geometria.isoformat() if p_geometria else None,
                 "nasledujuca_geometria": n_geometria.isoformat() if n_geometria else None,
+                "poznamka": poznamka.strip() if poznamka else None,
+                "datum_poznamky": datum_poznamky.isoformat() if datum_poznamky else None,
             }
 
             stroj_existuje = None

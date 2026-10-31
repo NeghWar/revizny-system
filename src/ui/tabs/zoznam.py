@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 import streamlit as st
 
+from src.config import POSLEDNA_NAZVY
 from src.db import supabase_client as db
 from src.services import excel
 from src.services.revizie import vypocitaj_nasledujuci
@@ -327,6 +328,25 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         new_p_odbsk = st.selectbox("Perióda Odbornej skúšky (roky):", list_p_odbsk, index=p_odbsk_idx, key=f"sel_odbsk_{stroj_id}")
 
                     st.markdown("---")
+                    st.markdown("**Poznámka k stroju**")
+                    new_poznamka = st.text_area(
+                        "Poznámka (dôvod, napr. stroj v poruche):",
+                        value=stroj.get("poznamka") or "",
+                        key=f"inp_pozn_{stroj_id}",
+                    )
+                    _db_pozn_dt = date.today()
+                    if stroj.get("datum_poznamky"):
+                        try:
+                            _db_pozn_dt = date.fromisoformat(str(stroj["datum_poznamky"]).strip())
+                        except ValueError:
+                            pass
+                    new_datum_poznamky = st.date_input(
+                        "Dátum poznámky:",
+                        _db_pozn_dt,
+                        key=f"inp_datpozn_{stroj_id}",
+                    )
+
+                    st.markdown("---")
                     new_ma_geom = st.checkbox("Vykonáva sa Geometrické zameranie?", value=stroj.get("vykonava_sa_geometria", False), key=f"chk_geom_{stroj_id}")
                     new_geom = st.date_input("Posledná Geometria dráhy:", db_geom, key=f"inp_geom_{stroj_id}") if new_ma_geom else None
                     clear_geom = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_geom_{stroj_id}") if new_ma_geom else False
@@ -374,7 +394,44 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                             "vykonava_sa_geometria": new_ma_geom,
                             "posledna_geometria": final_geom.isoformat() if final_geom else None,
                             "nasledujuca_geometria": n_geom.isoformat() if n_geom else None,
+                            "poznamka": new_poznamka.strip() if new_poznamka else None,
+                            "datum_poznamky": new_datum_poznamky.isoformat() if new_datum_poznamky else None,
                         }
+
+                        # --- AUTO-HISTÓRIA ROKOV: zapíš nové/posunuté vykonané kontroly ---
+                        for _posl_col, _nazov_kontroly in POSLEDNA_NAZVY.items():
+                            _stare = (stroj.get(_posl_col) or "")
+                            _nove = (upravene_data.get(_posl_col) or "")
+                            # Zapíšeme len ak je vyplnený nový dátum a oproti pôvodnému sa zmenil
+                            if _nove and _nove != _stare:
+                                try:
+                                    db.insert_historia_rok(
+                                        supabase,
+                                        rok=int(_nove[:4]),
+                                        datum_vykonu=_nove,
+                                        nazov_stroja=new_nazov.strip() or stroj.get("nazov"),
+                                        evidencne_cislo=stroj.get("evidencne_cislo"),
+                                        voj=stroj.get("voj"),
+                                        umiestnenie=stroj.get("umiestnenie"),
+                                        typ_kontroly=_nazov_kontroly,
+                                    )
+                                except Exception:
+                                    pass
+
+                        # --- AUTO-HISTÓRIA: ak sa poznámka zmenila, stará ide do histórie porúch ---
+                        stara_poznamka = (stroj.get("poznamka") or "").strip()
+                        nova_poznamka = (upravene_data.get("poznamka") or "").strip()
+                        if stara_poznamka and stara_poznamka != nova_poznamka:
+                            try:
+                                db.insert_historia_poruchy(
+                                    supabase,
+                                    nazov_stroja=stroj.get("nazov") or new_nazov,
+                                    evidencne_cislo=stroj.get("evidencne_cislo"),
+                                    text_poruchy=stara_poznamka,
+                                )
+                            except Exception:
+                                # Ak história zlyhá (napr. tabuľka ešte neexistuje), uloženie stroja predsa prebehne
+                                pass
 
                         try:
                             db.update_stroj(supabase, stroj_id, upravene_data)

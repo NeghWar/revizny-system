@@ -65,3 +65,71 @@ def update_poznamka(supabase: Client, stroj_id, typ_kontroly: str, text: str) ->
     supabase.table("poznamky_restov").update({"text_poznamky": text}).eq(
         "stroj_id", stroj_id
     ).eq("typ_kontroly", typ_kontroly).execute()
+
+
+# ---------------------------------------------------------------------------
+# HISTÓRIA PORÚCH (archív starých poznámok pri prepise)
+# ---------------------------------------------------------------------------
+def insert_historia_poruchy(
+    supabase: Client,
+    nazov_stroja: str,
+    evidencne_cislo: str | None,
+    text_poruchy: str,
+) -> None:
+    """Zapíše starú poznámku do histórie porúch (automaticky pri prepise)."""
+    supabase.table("historia_poruch").insert({
+        "nazov_stroja": nazov_stroja,
+        "evidencne_cislo": evidencne_cislo,
+        "text_poruchy": text_poruchy,
+    }).execute()
+
+
+def get_historia_poruch(supabase: Client) -> list[dict]:
+    """Načíta celú históriu porúch (najnovšie prvé)."""
+    try:
+        odpoved = (
+            supabase.table("historia_poruch")
+            .select("*")
+            .order("datum_zapisu", desc=True)
+            .execute()
+        )
+        return odpoved.data or []
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
+# ROČNÁ HISTÓRIA VYKONANÝCH PRÁC
+# ---------------------------------------------------------------------------
+def insert_historia_rok(
+    supabase: Client,
+    rok: int,
+    datum_vykonu: str,
+    nazov_stroja: str,
+    evidencne_cislo: str | None,
+    voj: str | None,
+    umiestnenie: str | None,
+    typ_kontroly: str,
+) -> None:
+    """Zapíše vykonanú kontrolu do ročnej histórie."""
+    supabase.table("historia_rokov").insert({
+        "rok": rok,
+        "datum_vykonu": datum_vykonu,
+        "nazov_stroja": nazov_stroja,
+        "evidencne_cislo": evidencne_cislo,
+        "voj": voj,
+        "umiestnenie": umiestnenie,
+        "typ_kontroly": typ_kontroly,
+    }).execute()
+
+
+def get_historia_rokov(supabase: Client, rok: int | None = None) -> list[dict]:
+    """Načíta históriu vykonaných prác (voliteľne len pre daný rok)."""
+    try:
+        dotaz = supabase.table("historia_rokov").select("*")
+        if rok is not None:
+            dotaz = dotaz.eq("rok", rok)
+        odpoved = dotaz.order("datum_vykonu", desc=True).execute()
+        return odpoved.data or []
+    except Exception:
+        return []

@@ -29,12 +29,13 @@ vsetky_stroje = get_stroje(supabase)
 
 st.title("⚙️ Profesionálny Systém Revízií a Prehliadok")
 
-# --- Rozdelenie stránky na štyri záložky ---
-tab_prehlad, tab_kalendar, tab_pridat, tab_zoznam = st.tabs([
+# --- Rozdelenie stránky na päť záložiek ---
+tab_prehlad, tab_kalendar, tab_pridat, tab_zoznam, tab_historia = st.tabs([
     "🔔 Prehľad a Upozornenia",
     "📅 Mesačný Kalendár",
     "➕ Pridať / Evidovať Stroj",
     "📋 Zoznam strojov a úprava",
+    "📜 Ročná história",
 ])
 
 with tab_prehlad:
@@ -52,3 +53,7 @@ with tab_pridat:
 with tab_zoznam:
     from src.ui.tabs import zoznam
     zoznam.render(supabase, vsetky_stroje)
+
+with tab_historia:
+    from src.ui.tabs import historia
+    historia.render(supabase, vsetky_stroje)

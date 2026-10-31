@@ -3,6 +3,12 @@
 Export: stylovaný .xlsx súbor (hlavička, mriežka, zmrazený prvý riadok).
 Import: načítanie .xlsx, konverzia slovenských dátumov na ISO a očistenie
         float-artefaktov (napr. "17.0" -> "17").
+
+Poradie stĺpcov (za VOJ):
+    1) Aktuálna (posledná vykonaná) činnosť
+    2) Periodicita opakovania
+    3) Nasledujúca (plánovaná) činnosť
+    4) Poznámka stroja + dátum poznámky
 """
 
 import io
@@ -22,6 +28,7 @@ except ImportError:  # pragma: no cover
 
 # Poradie a názvy stĺpcov vo Excel exporte (db_stĺpec -> Excel názov)
 STLPCE_PRE_EXCEL: dict[str, str] = {
+    # --- 1) Identifikácia stroja ---
     "nazov": "Názov stroja",
     "druh_systemu": "Druh systému (VTZ/UTZ)",
     "legislativna_skupina": "Legislatívna skupina",
@@ -31,19 +38,30 @@ STLPCE_PRE_EXCEL: dict[str, str] = {
     "umiestnenie": "Umiestnenie",
     "firma": "Firma",
     "voj": "VOJ",
-    "nasledujuca_revizia": "Ďalšia Revízia",
-    "nasledujuca_revizna_skuska": "Ďalšia Revízna skúška",
-    "nasledujuca_podrobna_prehliadka_ok": "Ďalšia Podrobná prehliadka OK",
-    "nasledujuca_odborna_prehliadka": "Ďalšia Odborná prehliadka",
-    "nasledujuca_odborna_skuska": "Ďalšia Odborná skúška",
-    "nasledujuca_uradna_skuska": "Ďalšia Úradná skúška",
-    "nasledujuca_geometria": "Ďalšia Geometria dráhy",
-    # Periódy jednotlivých kontrol (novinka — doplnené na koniec, aby staré
-    # Excel súbory bez týchto stĺpcov fungovali aj naďalej)
+    # --- 2) Aktuálna (posledná vykonaná) činnosť ---
+    "posledna_revizia": "Posledná Revízia",
+    "posledna_revizna_skuska": "Posledná Revízna skúška",
+    "posledna_uradna_skuska": "Posledná Úradná skúška",
+    "posledna_odborna_prehliadka": "Posledná Odborná prehliadka",
+    "posledna_odborna_skuska": "Posledná Odborná skúška",
+    "posledna_podrobna_prehliadka_ok": "Posledná Podrobná prehliadka OK",
+    "posledna_geometria": "Posledná Geometria dráhy",
+    # --- 3) Periodicita opakovania ---
     "perioda_reviznej_skusky": "Perióda Revíznej skúšky (roky)",
     "perioda_uradnej_skusky": "Perióda Úradnej skúšky (roky)",
-    "interval_odborna_pr": "Interval Odbornéj prehliadky (roky)",
-    "perioda_odbornej_skusky": "Perióda Odbornéj skúšky (roky)",
+    "interval_odborna_pr": "Interval Odborná prehliadka (roky)",
+    "perioda_odbornej_skusky": "Perióda Odborná skúška (roky)",
+    # --- 4) Nasledujúca (plánovaná) činnosť ---
+    "nasledujuca_revizia": "Nasledujúca Revízia",
+    "nasledujuca_revizna_skuska": "Nasledujúca Revízna skúška",
+    "nasledujuca_uradna_skuska": "Nasledujúca Úradná skúška",
+    "nasledujuca_odborna_prehliadka": "Nasledujúca Odborná prehliadka",
+    "nasledujuca_odborna_skuska": "Nasledujúca Odborná skúška",
+    "nasledujuca_podrobna_prehliadka_ok": "Nasledujúca Podrobná prehliadka OK",
+    "nasledujuca_geometria": "Nasledujúca Geometria dráhy",
+    # --- 5) Poznámka stroja ---
+    "poznamka": "Poznámka",
+    "datum_poznamky": "Dátum poznámky",
 }
 
 # Inverzná mapa pre import: Excel názov -> db stĺpec
@@ -51,7 +69,9 @@ MAPOVANIE_NA_DB: dict[str, str] = {excel: db for db, excel in STLPCE_PRE_EXCEL.i
 
 # Excel stĺpce, ktoré obsahujú dátumy (naformátované ako DD.MM.YYYY)
 STLPCE_S_DATUMAMI: list[str] = [
-    excel for db, excel in STLPCE_PRE_EXCEL.items() if db.startswith("nasledujuca_")
+    excel
+    for db, excel in STLPCE_PRE_EXCEL.items()
+    if db.startswith("posledna_") or db.startswith("nasledujuca_") or db == "datum_poznamky"
 ]
 
 
@@ -170,8 +190,8 @@ def parse_import_subor(subor) -> list[dict]:
                 continue
             val = row[excel_col]
 
-            # 1. Dátumové stĺpce -> ISO formát
-            if db_col.startswith("nasledujuca_"):
+            # 1. Dátumové stĺpce (posledná / nasledujúca / dátum poznámky) -> ISO
+            if db_col in STLPCE_S_DATUMAMI:
                 stroj_data[db_col] = konvertuj_na_iso_datum(val)
             # 2. Čísla vybavenia / evidencie -> očistené od .0
             elif db_col in ["cislo_vybavenia", "evidencne_cislo"]:
@@ -179,7 +199,7 @@ def parse_import_subor(subor) -> list[dict]:
             # 3. Periódy -> int/float
             elif db_col in PERIODA_STLPCE:
                 stroj_data[db_col] = konvertuj_periodu(val, db_col)
-            # 4. Ostatné textové stĺpce
+            # 4. Ostatné textové stĺpce (vrátane poznámky)
             else:
                 stroj_data[db_col] = (
                     None
@@ -187,10 +207,68 @@ def parse_import_subor(subor) -> list[dict]:
                     else str(val).strip()
                 )
 
-        # Prepínač geometrie zapneme podľa zapísaného dátumu
-        if "nasledujuca_geometria" in stroj_data and stroj_data["nasledujuca_geometria"] is not None:
+        # Prepínač geometrie zapneme podľa zapísaného dátumu (posledná alebo nasledujúca)
+        if stroj_data.get("posledna_geometria") or stroj_data.get("nasledujuca_geometria"):
             stroj_data["vykonava_sa_geometria"] = True
 
         riadky.append({"nazov": str(nazov_st).strip(), "data": stroj_data})
 
     return riadky
+
+
+# ---------------------------------------------------------------------------
+# EXPORT ROČNEJ HISTÓRIE VYKONANÝCH PRÁC
+# ---------------------------------------------------------------------------
+# Poradie a názvy stĺpcov v ročnom prehľade (db_stĺpec -> Excel názov)
+STLPCE_HISTORIA_ROKOV: dict[str, str] = {
+    "rok": "Rok",
+    "datum_vykonu": "Dátum vykonania",
+    "nazov_stroja": "Názov stroja",
+    "evidencne_cislo": "Evidenčné číslo",
+    "voj": "VOJ",
+    "umiestnenie": "Umiestnenie",
+    "typ_kontroly": "Vykonaná kontrola",
+}
+
+
+def export_historia_rokov_excel(zaznamy: list[dict]) -> bytes:
+    """Vytvorí formátovaný Excel s ročnou históriou vykonaných prác."""
+    if not zaznamy:
+        df_export = pd.DataFrame(columns=list(STLPCE_HISTORIA_ROKOV.values()))
+    else:
+        df = pd.DataFrame(zaznamy)
+        for db_col in STLPCE_HISTORIA_ROKOV.keys():
+            if db_col not in df.columns:
+                df[db_col] = None
+        df_export = df[list(STLPCE_HISTORIA_ROKOV.keys())].rename(columns=STLPCE_HISTORIA_ROKOV)
+        if "Dátum vykonania" in df_export.columns:
+            df_export["Dátum vykonania"] = pd.to_datetime(
+                df_export["Dátum vykonania"], errors="coerce"
+            ).dt.strftime("%d.%m.%Y")
+
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df_export.to_excel(writer, index=False, sheet_name="História vykonaných prác")
+        worksheet = writer.sheets["História vykonaných prác"]
+
+        hlavicka_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+        hlavicka_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
+        tenka_ciara = Side(border_style="thin", color="D9D9D9")
+        mriezka = Border(left=tenka_ciara, right=tenka_ciara, top=tenka_ciara, bottom=tenka_ciara)
+
+        for row in worksheet.iter_rows(min_row=1, max_row=1, min_col=1, max_col=worksheet.max_column):
+            for cell in row:
+                cell.font = hlavicka_font
+                cell.fill = hlavicka_fill
+                cell.border = mriezka
+        worksheet.freeze_panes = "A2"
+
+        for col in worksheet.columns:
+            max_len = max(len(str(cell.value or "")) for cell in col)
+            col_letter = get_column_letter(col[0].column)
+            worksheet.column_dimensions[col_letter].width = max(max_len + 3, 12)
+            for cell in col:
+                if cell.row > 1:
+                    cell.border = mriezka
+
+    return buffer.getvalue()
