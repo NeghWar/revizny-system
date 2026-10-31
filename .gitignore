@@ -21,4 +21,5 @@ env/
 Thumbs.db
 
 # Rozne temp
-*.log
+*.log# AI kontext so secretmi - NIKDY necommitovat!
+GEMINI.md
