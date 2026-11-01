@@ -7,6 +7,10 @@
 alter table stroje add column if not exists poznamka text;
 alter table stroje add column if not exists datum_poznamky date;
 
+-- 1b) Doplň chýbajúce periódy (aplikácia ich očakáva podľa src/config.py)
+alter table stroje add column if not exists interval_odborna_pr numeric;     -- float: 0.25 / 0.5 / 1 / 2 / 3
+alter table stroje add column if not exists perioda_odbornej_skusky integer;  -- int (roky)
+
 -- 2) Nová tabuľka: história porúch / poznámok
 --    Sem sa automaticky zapíše stará poznámka pri prepise.
 create table if not exists historia_poruch (
@@ -37,3 +41,4 @@ create table if not exists historia_rokov (
 );
 
 create index if not exists idx_historia_rokov_rok on historia_rokov (rok);
+

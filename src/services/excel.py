@@ -191,7 +191,7 @@ def parse_import_subor(subor) -> list[dict]:
             val = row[excel_col]
 
             # 1. Dátumové stĺpce (posledná / nasledujúca / dátum poznámky) -> ISO
-            if db_col in STLPCE_S_DATUMAMI:
+            if excel_col in STLPCE_S_DATUMAMI:
                 stroj_data[db_col] = konvertuj_na_iso_datum(val)
             # 2. Čísla vybavenia / evidencie -> očistené od .0
             elif db_col in ["cislo_vybavenia", "evidencne_cislo"]:
@@ -272,3 +272,4 @@ def export_historia_rokov_excel(zaznamy: list[dict]) -> bytes:
                     cell.border = mriezka
 
     return buffer.getvalue()
+

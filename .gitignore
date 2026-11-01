@@ -23,3 +23,8 @@ Thumbs.db
 # Rozne temp
 *.log# AI kontext so secretmi - NIKDY necommitovat!
 GEMINI.md
+
+# Lokalne zalohy databazy (necommitovat)
+zalohy/
+_*.py
+
