@@ -21,6 +21,12 @@ from src.ui.auth import (
 
 st.set_page_config(page_title="Revízny Systém Strojov", page_icon="⚙️", layout="wide")
 
+# Režim vieme mať zapísaný aj v URL (napr. ...?rezim=mobil). Vďaka tomu sa po
+# otvorení z ikonky na ploche nemusíš znovu pýtať — rovno sa použije mobilný režim.
+rezim_z_url = st.query_params.get("rezim")
+if rezim_z_url in ("pc", "mobil"):
+    st.session_state["rezim"] = rezim_z_url
+
 # 0) Výber režimu (počítač / mobil) — ešte pred prihlásením
 vyber_zariadenia()
 

@@ -98,10 +98,21 @@ def odhlasit_sidebar() -> None:
         st.rerun()
 
 
+def _nastav_rezim(rezim: str) -> None:
+    """Nastaví režim v session a zapíše ho aj do URL (aby ho ikonka 'zapamätala')."""
+    st.session_state["rezim"] = rezim
+    try:
+        st.query_params["rezim"] = rezim
+    except Exception:
+        pass
+    st.rerun()
+
+
 def vyber_zariadenia() -> None:
     """Pred prihlásením sa opýta, či sa pracuje na počítači alebo na mobile/tablete.
 
     Podľa voľby sa prispôsobia dostupné záložky a funkcie (mobil = len čítanie).
+    Ak je režim už v URL (?rezim=...), otázka sa preskočí.
     """
     if st.session_state.get("rezim"):
         return
@@ -113,12 +124,10 @@ def vyber_zariadenia() -> None:
     c1, c2 = st.columns(2)
     with c1:
         if st.button("💻 Notebook / počítač", use_container_width=True, key="btn_rezim_pc"):
-            st.session_state["rezim"] = "pc"
-            st.rerun()
+            _nastav_rezim("pc")
     with c2:
         if st.button("📱 Mobil / tablet", use_container_width=True, key="btn_rezim_mobil"):
-            st.session_state["rezim"] = "mobil"
-            st.rerun()
+            _nastav_rezim("mobil")
 
     st.stop()
 
@@ -128,6 +137,5 @@ def prepni_rezim_sidebar() -> None:
     aktualny = st.session_state.get("rezim", "pc")
     ciel = "mobil" if aktualny == "pc" else "počítač"
     if st.sidebar.button(f"🔄 Prepnúť na {ciel}"):
-        st.session_state["rezim"] = "mobil" if aktualny == "pc" else "pc"
-        st.rerun()
+        _nastav_rezim("mobil" if aktualny == "pc" else "pc")
 
