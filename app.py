@@ -11,12 +11,22 @@ Tento súbor len nastaví stránku, overí používateľa a vykreslí jednotliv�
 
 import streamlit as st
 
-from src.db.supabase_client import get_stroje, get_supabase
+from src.db.supabase_client import chyba_klucov, get_stroje, get_supabase
 from src.ui.auth import login_zamok, odhlasit_sidebar
 
 st.set_page_config(page_title="Revízny Systém Strojov", page_icon="⚙️", layout="wide")
 
-supabase = get_supabase()
+# Bez prístupových kľúčov k databáze sa zastavíme s jasnou hláškou (nie traceback).
+chyba_db = chyba_klucov()
+if chyba_db:
+    st.error(f"⚠️ **Nepodarilo sa pripojiť k databáze.**\n\n{chyba_db}")
+    st.stop()
+
+try:
+    supabase = get_supabase()
+except Exception as chyba:
+    st.error(f"⚠️ **Nepodarilo sa pripojiť k databáze.**\n\n{chyba}")
+    st.stop()
 
 # 🔒 Bezpečnostný zámok (st.stop() vnútri, ak používateľ nie je overený)
 login_zamok()

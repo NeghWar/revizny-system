@@ -3,16 +3,39 @@
 import streamlit as st
 from supabase import Client, create_client
 
-# Načítanie zo Streamlit secrets (lokálne: .streamlit/secrets.toml;
-# v produkcii: Streamlit Cloud → Settings → Secrets).
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+KLUCE = ("SUPABASE_URL", "SUPABASE_KEY")
+
+
+def chyba_klucov() -> str | None:
+    """Vráti zrozumiteľnú hlášku, ak chýbajú prístupové kľúče; inak None.
+
+    Kľúče sa zámerne NEČÍTAJÚ pri importe modulu — inak by aplikácia spadla
+    (traceback) skôr, než by sa stihla zobraziť táto hláška.
+    """
+    chybajuce = []
+    for nazov in KLUCE:
+        try:
+            if not st.secrets.get(nazov):
+                chybajuce.append(nazov)
+        except Exception:
+            chybajuce.append(nazov)
+
+    if not chybajuce:
+        return None
+    return (
+        f"V konfigurácii chýba: **{', '.join(chybajuce)}**.\n\n"
+        "Doplň ich do súboru `.streamlit/secrets.toml` (lokálne) alebo do "
+        "**Streamlit Cloud → Settings → Secrets**."
+    )
 
 
 @st.cache_resource
 def get_supabase() -> Client:
-    """Vráti cachovaného Supabase klienta."""
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    """Vráti cachovaného Supabase klienta (kľúče sa čítajú až teraz).
+
+    Lokálne: .streamlit/secrets.toml; v produkcii: Streamlit Cloud → Secrets.
+    """
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 
 # ---------------------------------------------------------------------------
