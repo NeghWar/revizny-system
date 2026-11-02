@@ -5,7 +5,7 @@ from datetime import date
 import streamlit as st
 from dateutil.relativedelta import relativedelta
 
-from src.config import KONTROLY, POSLEDNA_NAZVY
+from src.config import KONTROLY, ODPOVEDAJUCE_POSLEDNE, POSLEDNA_NAZVY
 from src.db import supabase_client as db
 from src.services import excel
 from src.services.revizie import parsuj_datum, vypocitaj_nasledujuci
@@ -215,12 +215,22 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
 
                 with col_revizie:
                     st.markdown("**📅 Nasledujúce termíny kontrol:**")
-                    f_rev = formatuj_datum_s_farbou(stroj.get("nasledujuca_revizia"), dnesny_den)
-                    f_rev_sk = formatuj_datum_s_farbou(stroj.get("nasledujuca_revizna_skuska"), dnesny_den)
-                    f_pod_ok = formatuj_datum_s_farbou(stroj.get("nasledujuca_podrobna_prehliadka_ok"), dnesny_den)
-                    f_odb_pr = formatuj_datum_s_farbou(stroj.get("nasledujuca_odborna_prehliadka"), dnesny_den)
-                    f_odb_sk = formatuj_datum_s_farbou(stroj.get("nasledujuca_odborna_skuska"), dnesny_den)
-                    f_urad = formatuj_datum_s_farbou(stroj.get("nasledujuca_uradna_skuska"), dnesny_den)
+
+                    def _datum(nasl_col: str) -> str:
+                        """Naformátuje termín; pri 'neopakuje sa' ukáže modrú poslednú kontrolu."""
+                        posl_col = ODPOVEDAJUCE_POSLEDNE.get(nasl_col)
+                        return formatuj_datum_s_farbou(
+                            stroj.get(nasl_col),
+                            dnesny_den,
+                            stroj.get(posl_col) if posl_col else None,
+                        )
+
+                    f_rev = _datum("nasledujuca_revizia")
+                    f_rev_sk = _datum("nasledujuca_revizna_skuska")
+                    f_pod_ok = _datum("nasledujuca_podrobna_prehliadka_ok")
+                    f_odb_pr = _datum("nasledujuca_odborna_prehliadka")
+                    f_odb_sk = _datum("nasledujuca_odborna_skuska")
+                    f_urad = _datum("nasledujuca_uradna_skuska")
 
                     st.markdown(
                         f"- **Revízia:** {f_rev}\n"
@@ -232,7 +242,7 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         unsafe_allow_html=True,
                     )
                     if stroj.get("vykonava_sa_geometria"):
-                        f_geom = formatuj_datum_s_farbou(stroj.get("nasledujuca_geometria"), dnesny_den)
+                        f_geom = _datum("nasledujuca_geometria")
                         st.markdown(f"- **Geometria žeriavovej dráhy:** {f_geom}", unsafe_allow_html=True)
 
                 with col_akcia:

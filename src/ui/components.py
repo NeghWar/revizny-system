@@ -81,11 +81,13 @@ def render_kalendar_stlpec(
                 st.rerun()
 
 
-def formatuj_datum_s_farbou(iso_datum, dnesny_den) -> str:
+def formatuj_datum_s_farbou(iso_datum, dnesny_den, posledny_datum=None) -> str:
     """Vráti HTML span s farbou semafora pre jeden termín.
 
     - červená: termín uplynul (PO TERMÍNE)
     - zelená : termín je platný
+    - modrá  : ďalší termín nie je (neopakuje sa), ale kontrola bola vykonaná
+               -> ukáže dátum poslednej (uvádzacej) kontroly
     - šedá   : hodnota chýba alebo je nečitateľná („nevykonáva sa")
     """
     if iso_datum:
@@ -97,5 +99,19 @@ def formatuj_datum_s_farbou(iso_datum, dnesny_den) -> str:
                 return f"<span style='color:#ff4b4b; font-weight:bold;'>{pekny_format} (PO TERMÍNE! 🚨)</span>"
             return f"<span style='color:#09ab3b; font-weight:bold;'>{pekny_format} (Platná ✅)</span>"
         except Exception:
-            return "<span style='color:#777777;'>*nevykonáva sa*</span>"
+            pass
+
+    # Ďalší termín nie je, ale kontrola bola vykonaná -> neopakuje sa (modrá)
+    if posledny_datum:
+        try:
+            date.fromisoformat(str(posledny_datum).strip())
+            r, m, d = str(posledny_datum).split("-")
+            pekny_format = f"{d}.{m}.{r}"
+            return (
+                f"<span style='color:#1f77b4; font-weight:bold;'>{pekny_format} "
+                f"(vykonané – už sa neopakuje 🔁)</span>"
+            )
+        except Exception:
+            pass
+
     return "<span style='color:#777777;'>*nevykonáva sa*</span>"
