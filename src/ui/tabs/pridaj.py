@@ -65,6 +65,20 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
             with col_id2:
                 cislo_vybavenia = st.text_input("Číslo vybavenia:", placeholder="Napr. 17")
 
+            col_z1, col_z2 = st.columns(2)
+            with col_z1:
+                firma_st = st.text_input("Firma:", placeholder="Napr. Žeriavy s.r.o.")
+            with col_z2:
+                voj = st.text_input("VOJ:", placeholder="Napr. 12345")
+
+            col_l1, col_l2, col_l3 = st.columns(3)
+            with col_l1:
+                druh_systemu = st.selectbox("Druh systému:", ["-", "VTZ", "UTZ"], key="add_druh_systemu")
+            with col_l2:
+                legislativna_skupina = st.text_input("Legislatívna skupina:", placeholder="Napr. A")
+            with col_l3:
+                legislativny_druh = st.text_input("Legislatívny druh:", placeholder="Napr. zdvíhadlo")
+
             st.markdown("---")
             st.subheader("Zadajte dátumy posledných vykonaných kontrol a ich periódy:")
 
@@ -129,6 +143,11 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                 "umiestnenie": umiestnenie.strip() if umiestnenie else None,
                 "evidencne_cislo": evidencne_cislo.strip() if evidencne_cislo else None,
                 "cislo_vybavenia": cislo_vybavenia.strip() if cislo_vybavenia else None,
+                "firma": firma_st.strip() if firma_st else None,
+                "voj": voj.strip() if voj else None,
+                "druh_systemu": druh_systemu if druh_systemu != "-" else None,
+                "legislativna_skupina": legislativna_skupina.strip() if legislativna_skupina else None,
+                "legislativny_druh": legislativny_druh.strip() if legislativny_druh else None,
                 "posledna_revizia": p_revizia.isoformat() if p_revizia else None,
                 "nasledujuca_revizia": n_rev.isoformat() if n_rev else None,
                 "posledna_revizna_skuska": p_revizna_sk.isoformat() if p_revizna_sk else None,

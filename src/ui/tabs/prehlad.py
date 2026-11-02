@@ -1,4 +1,4 @@
-"""Záložka 1: Prehľad a upozornenia — duálny kalendár + kritické nedoplatky + poznámky."""
+"""Záložka 1: Prehľad a upozornenia — duálny kalendár + kontroly po termíne + dôvody."""
 
 from datetime import date
 
@@ -57,9 +57,13 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
             "cal_nasl", "buduci", "⏭️", "Nasledujúci mesiac", "#2E7D32",
         )
 
-    # --- KRITICKÉ UPOZORNENIA Z MINULOSTI ---
+    # --- KONTROLY PO TERMÍNE (OTVORENÉ) ---
     st.markdown("<br><br>", unsafe_allow_html=True)  # Decentná medzera na oddelenie
-    st.subheader("🚨 Kritické nedoplatky (Zameškané z minulých mesiacov)")
+    st.subheader("⏰ Kontroly po termíne (otvorené)")
+    st.caption(
+        "Kontroly, ktorých plánovaný termín už uplynul a zatiaľ neboli vykonané. "
+        "Ku každej si môžeš dopísať dôvod — uloží sa a starší dôvod sa archivuje do histórie porúch."
+    )
     nasli_sa_stare_resty = False
 
     for stroj in vsetky_stroje:
@@ -78,9 +82,9 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
 
                 existujuca_poznamka = najdi_poznamku(vsetky_poznamky, stroj_id, stlpec)
                 if existujuca_poznamka:
-                    st.info(f"ℹ️ **Dôvod zameškania:** {existujuca_poznamka}")
+                    st.info(f"ℹ️ **Uvedený dôvod:** {existujuca_poznamka}")
 
-                with st.expander("📝 Upraviť poznámku k zdôvodneniu meškania"):
+                with st.expander("📝 Doplniť / upraviť dôvod"):
                     with st.form(key=f"form_poznamka_{stroj_id}_{stlpec}"):
                         nova_poznamka = st.text_area(
                             "Dôvod (napr. Stroj v poruche, čaká sa na diel / dohodnutý termín):",
@@ -90,20 +94,30 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         tlacidlo_ulozit_p = st.form_submit_button("💾 Uložiť dôvod")
 
                         if tlacidlo_ulozit_p:
+                            novy_text = (nova_poznamka or "").strip()
                             try:
                                 if existujuca_poznamka:
-                                    db.update_poznamka(supabase, stroj_id, stlpec, nova_poznamka)
+                                    # Ak sa dôvod zmenil, starý text archivujeme do histórie porúch,
+                                    # aby zostal záznam, prečo kontrola nebola vykonaná v termíne.
+                                    if existujuca_poznamka.strip() != novy_text:
+                                        db.insert_historia_poruchy(
+                                            supabase,
+                                            nazov_stroja=stroj["nazov"],
+                                            evidencne_cislo=stroj.get("evidencne_cislo"),
+                                            text_poruchy=existujuca_poznamka,
+                                        )
+                                    db.update_poznamka(supabase, stroj_id, stlpec, novy_text)
                                 else:
                                     db.insert_poznamka(supabase, {
                                         "stroj_id": stroj_id,
                                         "typ_kontroly": stlpec,
-                                        "text_poznamky": nova_poznamka,
+                                        "text_poznamky": novy_text,
                                     })
-                                st.toast("Poznámka bola úspešne uložená! 📝")
+                                st.toast("Dôvod bol uložený. 📝")
                                 st.rerun()
                             except Exception as err:
                                 st.error(f"Chyba pri ukladaní: {err}")
                 st.write("")
 
     if not nasli_sa_stare_resty:
-        st.success("Skvelé! Nemáte žiadne staré zameškané revízie z minulých mesiacov. 🎉")
+        st.success("Skvelé! Žiadne kontroly nie sú po termíne. 🎉")

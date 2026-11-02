@@ -21,10 +21,14 @@ env/
 Thumbs.db
 
 # Rozne temp
-*.log# AI kontext so secretmi - NIKDY necommitovat!
+*.log
+
+# AI kontext so secretmi - NIKDY necommitovat!
 GEMINI.md
 
 # Lokalne zalohy databazy (necommitovat)
 zalohy/
 _*.py
 
+# Reporty z prepoctu terminov (lokalny artefakt)
+nastroje/report_prepoctu_*.csv

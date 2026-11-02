@@ -1,8 +1,9 @@
 """Záložka 4: Zoznam strojov, filtre, export/import Excelu, úprava a mazanie."""
 
-from datetime import date, timedelta
+from datetime import date
 
 import streamlit as st
+from dateutil.relativedelta import relativedelta
 
 from src.config import POSLEDNA_NAZVY
 from src.db import supabase_client as db
@@ -17,7 +18,8 @@ def _zisti_predvoleny_datum(stroj: dict, posledny_kluc: str, nasledujuci_kluc: s
     Poradie:
       1. Ak je v DB zapísaná posledná revízia -> použijeme ju.
       2. Ak posledná chýba -> dopočítame ju z nasledujúcej presne inverzným
-         vzorcom (roky*365 - 1), aby uloženie bez zmien neposunulo termín.
+         výpočtom (odpočítame N rokov/mesiacov), aby uloženie bez zmien
+         neposunulo termín.
       3. Ak nemáme nič -> dnešok.
     """
     posledny = stroj.get(posledny_kluc)
@@ -25,7 +27,7 @@ def _zisti_predvoleny_datum(stroj: dict, posledny_kluc: str, nasledujuci_kluc: s
 
     try:
         roky_cislo = float(minus_roky) if minus_roky is not None else 1.0
-    except ValueError:
+    except (TypeError, ValueError):
         roky_cislo = 1.0
 
     if posledny:
@@ -37,8 +39,10 @@ def _zisti_predvoleny_datum(stroj: dict, posledny_kluc: str, nasledujuci_kluc: s
     if nasledujuci:
         try:
             nasl_dt = date.fromisoformat(str(nasledujuci).strip())
-            # INVERZNÝ vzorec ku vypocitaj_nasledujuci -> žiadný drift pri uložení
-            return nasl_dt - timedelta(days=int(roky_cislo * 365 - 1))
+            # INVERZ ku vypocitaj_nasledujuci (relativedelta) -> žiadny drift pri uložení
+            mesiace = round(roky_cislo * 12)
+            if mesiace > 0:
+                return nasl_dt - relativedelta(months=mesiace)
         except ValueError:
             pass
 

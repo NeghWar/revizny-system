@@ -3,21 +3,35 @@
 Tento modul je bez Streamlit, takže sa dá jednoducho pokryť unit testami.
 """
 
-from datetime import date, timedelta
+from datetime import date
+
+from dateutil.relativedelta import relativedelta
 
 from src.config import KONTROLY, ODPOVEDAJUCE_POSLEDNE
 
 
 def vypocitaj_nasledujuci(posledny_datum: date | None, roky) -> date | None:
-    """Vypočíta nasledujúci termín kontrol = posledný + perióda.
+    """Vypočíta nasledujúci termín kontroly = posledný + presná perióda.
 
-    Vzorec (roky * 365 - 1) dní zachováva existujúce správanie aplikácie
-    (termín vychádza o deň skôr, než presné výročie).
+    Termín sa počíta kalendárne (nie náhradou 365 dní), takže vždy padne na
+    rovnaký deň o N rokov/mesiacov neskôr:
+        - celé roky (1, 2, 5, 10, ...) -> pripočíta sa N rokov
+        - zlomky roka (0.25, 0.5, 1.0, 2.0, 3.0) -> pripočíta sa N*12 mesiacov
+          (0.25 -> 3 mesiace, 0.5 -> 6 mesiacov, ...)
+
+    Krajové prípady (rovnako ako relativedelta, tzv. „orezanie" na koniec mesiaca):
+        - 29.02.2024 + 1 rok    -> 28.02.2025
+        - 31.01.2024 + 3 mesiace -> 30.04.2024
     """
-    if posledny_datum is None:
+    if posledny_datum is None or roky is None:
         return None
-    dni = int((roky * 365) - 1)
-    return posledny_datum + timedelta(days=dni)
+    try:
+        mesiace = round(float(roky) * 12)
+    except (TypeError, ValueError):
+        return None
+    if mesiace <= 0:
+        return None
+    return posledny_datum + relativedelta(months=mesiace)
 
 
 def parsuj_datum(hodnota) -> date | None:
