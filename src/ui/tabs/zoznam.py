@@ -9,7 +9,7 @@ from src.config import KONTROLY, ODPOVEDAJUCE_POSLEDNE, POSLEDNA_NAZVY
 from src.db import supabase_client as db
 from src.services import excel, legislativa
 from src.services.revizie import parsuj_datum, vypocitaj_nasledujuci
-from src.ui.components import formatuj_datum_s_farbou
+from src.ui.components import formatuj_datum_s_farbou, formatuj_poslednu
 
 # Pomôcka k zaškrtávaciemu poľu „Opakuje sa" (používa sa pri každej kontrole).
 HELP_OPAKUJE = (
@@ -277,36 +277,32 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                     )
 
                 with col_revizie:
-                    st.markdown("**📅 Nasledujúce termíny kontrol:**")
+                    st.markdown("**📅 Termíny kontrol (posledná → nasledujúca):**")
 
-                    def _datum(nasl_col: str) -> str:
-                        """Naformátuje termín; pri 'neopakuje sa' ukáže modrú poslednú kontrolu."""
+                    def _riadok(nasl_col: str, nazov: str) -> str:
+                        """Jeden riadok: posledná (vykonaná) → nasledujúca (so semaforom)."""
                         posl_col = ODPOVEDAJUCE_POSLEDNE.get(nasl_col)
-                        return formatuj_datum_s_farbou(
-                            stroj.get(nasl_col),
-                            dnesny_den,
-                            stroj.get(posl_col) if posl_col else None,
-                        )
+                        posl_iso = stroj.get(posl_col) if posl_col else None
+                        nasl_iso = stroj.get(nasl_col)
+                        if nasl_iso:
+                            return (
+                                f"- **{nazov}:** {formatuj_poslednu(posl_iso)} → "
+                                f"{formatuj_datum_s_farbou(nasl_iso, dnesny_den)}"
+                            )
+                        # bez ďalšieho termínu: ukáž modrú poslednú (neopakuje sa), inak sivú
+                        return f"- **{nazov}:** {formatuj_datum_s_farbou(None, dnesny_den, posl_iso)}"
 
-                    f_rev = _datum("nasledujuca_revizia")
-                    f_rev_sk = _datum("nasledujuca_revizna_skuska")
-                    f_pod_ok = _datum("nasledujuca_podrobna_prehliadka_ok")
-                    f_odb_pr = _datum("nasledujuca_odborna_prehliadka")
-                    f_odb_sk = _datum("nasledujuca_odborna_skuska")
-                    f_urad = _datum("nasledujuca_uradna_skuska")
-
-                    st.markdown(
-                        f"- **Revízia:** {f_rev}\n"
-                        f"- **Revízna skúška:** {f_rev_sk}\n"
-                        f"- **Podrobná prehliadka OK:** {f_pod_ok}\n"
-                        f"- **Odborná prehliadka:** {f_odb_pr}\n"
-                        f"- **Odborná skúška:** {f_odb_sk}\n"
-                        f"- **Úradná skúška:** {f_urad}",
-                        unsafe_allow_html=True,
-                    )
+                    riadky = [
+                        _riadok("nasledujuca_revizia", "Revízia"),
+                        _riadok("nasledujuca_revizna_skuska", "Revízna skúška"),
+                        _riadok("nasledujuca_podrobna_prehliadka_ok", "Podrobná prehliadka OK"),
+                        _riadok("nasledujuca_odborna_prehliadka", "Odborná prehliadka"),
+                        _riadok("nasledujuca_odborna_skuska", "Odborná skúška"),
+                        _riadok("nasledujuca_uradna_skuska", "Úradná skúška"),
+                    ]
                     if stroj.get("vykonava_sa_geometria"):
-                        f_geom = _datum("nasledujuca_geometria")
-                        st.markdown(f"- **Geometria žeriavovej dráhy:** {f_geom}", unsafe_allow_html=True)
+                        riadky.append(_riadok("nasledujuca_geometria", "Geometria dráhy"))
+                    st.markdown("\n".join(riadky), unsafe_allow_html=True)
 
                 with col_akcia:
                     kliknute_upravit = st.button("✏️ Upraviť", key=f"edit_btn_{stroj_id}")

@@ -115,3 +115,15 @@ def formatuj_datum_s_farbou(iso_datum, dnesny_den, posledny_datum=None) -> str:
             pass
 
     return "<span style='color:#777777;'>*nevykonáva sa*</span>"
+
+
+def formatuj_poslednu(iso_datum) -> str:
+    """Naformátuje dátum poslednej (vykonanej) kontroly — nenápadný sivý text."""
+    if iso_datum:
+        try:
+            date.fromisoformat(str(iso_datum).strip())
+            r, m, d = str(iso_datum).split("-")
+            return f"<span style='color:#555555;'>{d}.{m}.{r}</span>"
+        except Exception:
+            pass
+    return "<span style='color:#aaaaaa;'>—</span>"
