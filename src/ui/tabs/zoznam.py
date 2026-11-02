@@ -5,10 +5,10 @@ from datetime import date
 import streamlit as st
 from dateutil.relativedelta import relativedelta
 
-from src.config import POSLEDNA_NAZVY
+from src.config import KONTROLY, POSLEDNA_NAZVY
 from src.db import supabase_client as db
 from src.services import excel
-from src.services.revizie import vypocitaj_nasledujuci
+from src.services.revizie import parsuj_datum, vypocitaj_nasledujuci
 from src.ui.components import formatuj_datum_s_farbou
 
 
@@ -51,6 +51,12 @@ def _zisti_predvoleny_datum(stroj: dict, posledny_kluc: str, nasledujuci_kluc: s
 
 def render(supabase, vsetky_stroje: list[dict]) -> None:
     st.header("📋 Kompletný zoznam, export a import strojov")
+
+    # Dôvody meškania (poznámky ku konkrétnym kontrolám) — aby bolo pri stroji vidno,
+    # prečo je niektorý termín v červenom, bez nutnosti hľadať to inde.
+    dovody_podla_stroja: dict = {}
+    for p in db.get_poznamky(supabase):
+        dovody_podla_stroja.setdefault(p["stroj_id"], {})[p["typ_kontroly"]] = p.get("text_poznamky")
 
     # ==================== FILTRE ====================
     vsetky_firmy = sorted({s.get("firma") for s in vsetky_stroje if s.get("firma")})
@@ -240,6 +246,28 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         else:
                             st.session_state["aktualne_upravovany_id"] = stroj_id
                         st.rerun()
+
+                # --- POZNÁMKA STROJA (ak existuje) → hneď vidno, prečo môže byť termín v červenom ---
+                poznamka_stroja = (stroj.get("poznamka") or "").strip()
+                if poznamka_stroja:
+                    popis_datumu = ""
+                    if stroj.get("datum_poznamky"):
+                        try:
+                            _pd = date.fromisoformat(str(stroj["datum_poznamky"]).strip())
+                            popis_datumu = f" ({_pd.strftime('%d.%m.%Y')})"
+                        except ValueError:
+                            pass
+                    st.warning(f"📝 **Poznámka stroja{popis_datumu}:** {poznamka_stroja}")
+
+                # --- DÔVODY MEŠKANIA ku kontrolám, ktoré sú po termíne ---
+                dovody_stroja = dovody_podla_stroja.get(stroj_id) or {}
+                for stlpec_kontroly, nazov_kontroly in KONTROLY.items():
+                    dovod = dovody_stroja.get(stlpec_kontroly)
+                    if not dovod:
+                        continue
+                    termin_kontroly = parsuj_datum(stroj.get(stlpec_kontroly))
+                    if termin_kontroly and termin_kontroly < dnesny_den:
+                        st.info(f"ℹ️ **Dôvod ({nazov_kontroly}):** {dovod}")
 
             # ---- REŽIM ÚPRAVY ----
             if st.session_state["aktualne_upravovany_id"] == stroj_id:
