@@ -97,3 +97,37 @@ def odhlasit_sidebar() -> None:
         st.session_state.overeny = False
         st.rerun()
 
+
+def vyber_zariadenia() -> None:
+    """Pred prihlásením sa opýta, či sa pracuje na počítači alebo na mobile/tablete.
+
+    Podľa voľby sa prispôsobia dostupné záložky a funkcie (mobil = len čítanie).
+    """
+    if st.session_state.get("rezim"):
+        return
+
+    st.title("⚙️ Revízny systém strojov")
+    st.subheader("Na akom zariadení budete pracovať?")
+    st.caption("Podľa voľby sa prispôsobia dostupné záložky a funkcie.")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("💻 Notebook / počítač", use_container_width=True, key="btn_rezim_pc"):
+            st.session_state["rezim"] = "pc"
+            st.rerun()
+    with c2:
+        if st.button("📱 Mobil / tablet", use_container_width=True, key="btn_rezim_mobil"):
+            st.session_state["rezim"] = "mobil"
+            st.rerun()
+
+    st.stop()
+
+
+def prepni_rezim_sidebar() -> None:
+    """V bočnom menu ponúkne prepnutie medzi počítačovým a mobilným zobrazením."""
+    aktualny = st.session_state.get("rezim", "pc")
+    ciel = "mobil" if aktualny == "pc" else "počítač"
+    if st.sidebar.button(f"🔄 Prepnúť na {ciel}"):
+        st.session_state["rezim"] = "mobil" if aktualny == "pc" else "pc"
+        st.rerun()
+

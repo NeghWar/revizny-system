@@ -32,9 +32,6 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
         nasl_mesiac = akt_mesiac + 1
         nasl_rok = akt_rok
 
-    # Načítanie existujúcich poznámok z databázy
-    vsetky_poznamky = db.get_poznamky(supabase)
-
     # Semaforové udalosti pre oba mesiace
     udalosti_aktualny = build_udalosti(vsetky_stroje, akt_rok, akt_mesiac, dnes)
     udalosti_buduci = build_udalosti(vsetky_stroje, nasl_rok, nasl_mesiac, dnes)
@@ -59,31 +56,43 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
 
     # --- KONTROLY PO TERMÍNE (OTVORENÉ) ---
     st.markdown("<br><br>", unsafe_allow_html=True)  # Decentná medzera na oddelenie
+    _sekcia_po_termine(supabase, vsetky_stroje, readonly=False)
+
+
+def _sekcia_po_termine(supabase, vsetky_stroje: list[dict], readonly: bool = False) -> None:
+    """Vykreslí zoznam kontrol po termíne (a ak 'readonly' nie je, aj úpravu dôvodu)."""
+    dnes = date.today()
     st.subheader("⏰ Kontroly po termíne (otvorené)")
+    zaklad = "Kontroly, ktorých plánovaný termín už uplynul a zatiaľ neboli vykonané."
     st.caption(
-        "Kontroly, ktorých plánovaný termín už uplynul a zatiaľ neboli vykonané. "
-        "Ku každej si môžeš dopísať dôvod — uloží sa a starší dôvod sa archivuje do histórie porúch."
+        zaklad if readonly
+        else zaklad + " Ku každej si môžeš dopísať dôvod — uloží sa a starší dôvod sa archivuje do histórie porúch."
     )
-    nasli_sa_stare_resty = False
+
+    vsetky_poznamky = db.get_poznamky(supabase)
+    nasli_sa = False
 
     for stroj in vsetky_stroje:
         for stlpec, nazov_kontroly in KONTROLY.items():
             termin = parsuj_datum(stroj.get(stlpec))
             # Sledujeme len tie termíny, ktoré sú staršie ako začiatok aktuálneho mesiaca
-            if termin and termin < date(akt_rok, akt_mesiac, 1):
-                nasli_sa_stare_resty = True
-                dni_po = (dnes - termin).days
-                stroj_id = stroj["id"]
+            if not (termin and termin < date(dnes.year, dnes.month, 1)):
+                continue
 
-                st.error(
-                    f"❌ **{stroj['nazov']}** ({stroj['umiestnenie']}) -> **{nazov_kontroly}** "
-                    f"mala byť hotová do **{termin.strftime('%d.%m.%Y')}** (Mešká už {dni_po} dní!)"
-                )
+            nasli_sa = True
+            dni_po = (dnes - termin).days
+            stroj_id = stroj["id"]
 
-                existujuca_poznamka = najdi_poznamku(vsetky_poznamky, stroj_id, stlpec)
-                if existujuca_poznamka:
-                    st.info(f"ℹ️ **Uvedený dôvod:** {existujuca_poznamka}")
+            st.error(
+                f"❌ **{stroj['nazov']}** ({stroj.get('umiestnenie') or 'Nezadané'}) -> **{nazov_kontroly}** "
+                f"mala byť hotová do **{termin.strftime('%d.%m.%Y')}** (Mešká už {dni_po} dní!)"
+            )
 
+            existujuca_poznamka = najdi_poznamku(vsetky_poznamky, stroj_id, stlpec)
+            if existujuca_poznamka:
+                st.info(f"ℹ️ **Uvedený dôvod:** {existujuca_poznamka}")
+
+            if not readonly:
                 with st.expander("📝 Doplniť / upraviť dôvod"):
                     with st.form(key=f"form_poznamka_{stroj_id}_{stlpec}"):
                         nova_poznamka = st.text_area(
@@ -117,7 +126,13 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                                 st.rerun()
                             except Exception as err:
                                 st.error(f"Chyba pri ukladaní: {err}")
-                st.write("")
+            st.write("")
 
-    if not nasli_sa_stare_resty:
+    if not nasli_sa:
         st.success("Skvelé! Žiadne kontroly nie sú po termíne. 🎉")
+
+
+def render_po_termine(supabase, vsetky_stroje: list[dict]) -> None:
+    """Zjednodušené zobrazenie pre mobil — len nevykonané kontroly (bez úprav)."""
+    st.header("⚠️ Nevykonané kontroly")
+    _sekcia_po_termine(supabase, vsetky_stroje, readonly=True)

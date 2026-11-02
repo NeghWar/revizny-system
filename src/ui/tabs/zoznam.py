@@ -593,3 +593,80 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                             st.rerun()
                         except Exception as e:
                             st.error(f"Chyba pri ukladaní zmien do databázy: {e}")
+
+
+def render_kompaktny(supabase, vsetky_stroje: list[dict]) -> None:
+    """Zjednodušené (len na čítanie) zobrazenie pre mobil/tablet.
+
+    Bez úprav, mazania, exportu či legislatívnych nástrojov — len hľadanie
+    a prehľad strojov s termínmi a poznámkami.
+    """
+    st.header("📋 Zoznam strojov (len na čítanie)")
+    hladanie = st.text_input(
+        "🔍 Hľadať stroj:", key="mobil_hladanie", placeholder="Napr. Iveco, GB1/0042, MUV ..."
+    )
+
+    dnesny_den = date.today()
+    dovody_podla_stroja: dict = {}
+    for p in db.get_poznamky(supabase):
+        dovody_podla_stroja.setdefault(p["stroj_id"], {})[p["typ_kontroly"]] = p.get("text_poznamky")
+
+    def _riadok(nasl_col: str, nazov: str, stroj: dict) -> str:
+        posl_col = ODPOVEDAJUCE_POSLEDNE.get(nasl_col)
+        posl_iso = stroj.get(posl_col) if posl_col else None
+        nasl_iso = stroj.get(nasl_col)
+        if nasl_iso:
+            return (
+                f"- **{nazov}:** {formatuj_poslednu(posl_iso)} → "
+                f"{formatuj_datum_s_farbou(nasl_iso, dnesny_den)}"
+            )
+        return f"- **{nazov}:** {formatuj_datum_s_farbou(None, dnesny_den, posl_iso)}"
+
+    hladanie_n = (hladanie or "").strip().lower()
+    zobrazene = 0
+    for stroj in vsetky_stroje:
+        nazov_stroja = (stroj.get("nazov") or "")
+        if (
+            hladanie_n
+            and hladanie_n not in nazov_stroja.lower()
+            and hladanie_n not in (stroj.get("evidencne_cislo") or "").lower()
+        ):
+            continue
+        zobrazene += 1
+
+        with st.container(border=True):
+            st.markdown(f"**{nazov_stroja}**")
+            st.caption(
+                f"📍 {stroj.get('umiestnenie') or 'Nezadané'} · 🆔 {stroj.get('evidencne_cislo') or '—'}"
+                f" · 🏭 VOJ {stroj.get('voj') or '—'}"
+            )
+
+            poznamka_stroja = (stroj.get("poznamka") or "").strip()
+            if poznamka_stroja:
+                st.warning(f"📝 {poznamka_stroja}")
+
+            riadky = [
+                _riadok("nasledujuca_revizia", "Revízia", stroj),
+                _riadok("nasledujuca_revizna_skuska", "Revízna skúška", stroj),
+                _riadok("nasledujuca_podrobna_prehliadka_ok", "Podrobná prehliadka OK", stroj),
+                _riadok("nasledujuca_odborna_prehliadka", "Odborná prehliadka", stroj),
+                _riadok("nasledujuca_odborna_skuska", "Odborná skúška", stroj),
+                _riadok("nasledujuca_uradna_skuska", "Úradná skúška", stroj),
+            ]
+            if stroj.get("vykonava_sa_geometria"):
+                riadky.append(_riadok("nasledujuca_geometria", "Geometria dráhy", stroj))
+            st.markdown("\n".join(riadky), unsafe_allow_html=True)
+
+            dovody_stroja = dovody_podla_stroja.get(stroj["id"]) or {}
+            for stlpec_kontroly, nazov_kontroly in KONTROLY.items():
+                dovod = dovody_stroja.get(stlpec_kontroly)
+                if not dovod:
+                    continue
+                termin_kontroly = parsuj_datum(stroj.get(stlpec_kontroly))
+                if termin_kontroly and termin_kontroly < dnesny_den:
+                    st.info(f"ℹ️ **Dôvod ({nazov_kontroly}):** {dovod}")
+
+    if zobrazene == 0:
+        st.info("Nenašiel sa žiadny stroj.")
+    else:
+        st.caption(f"Zobrazených strojov: {zobrazene}")

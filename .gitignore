@@ -33,3 +33,6 @@ _*.py
 # Reporty z prepoctu terminov (lokalny artefakt)
 nastroje/report_prepoctu_*.csv
 nastroje/report_legislativa_*.csv
+
+# Vzorove dokumenty (napr. PDF vyhlasok) - necommitovat
+subory/*.pdf

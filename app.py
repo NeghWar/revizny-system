@@ -12,9 +12,17 @@ Tento súbor len nastaví stránku, overí používateľa a vykreslí jednotliv�
 import streamlit as st
 
 from src.db.supabase_client import chyba_klucov, get_stroje, get_supabase
-from src.ui.auth import login_zamok, odhlasit_sidebar
+from src.ui.auth import (
+    login_zamok,
+    odhlasit_sidebar,
+    prepni_rezim_sidebar,
+    vyber_zariadenia,
+)
 
 st.set_page_config(page_title="Revízny Systém Strojov", page_icon="⚙️", layout="wide")
+
+# 0) Výber režimu (počítač / mobil) — ešte pred prihlásením
+vyber_zariadenia()
 
 # Bez prístupových kľúčov k databáze sa zastavíme s jasnou hláškou (nie traceback).
 chyba_db = chyba_klucov()
@@ -31,12 +39,42 @@ except Exception as chyba:
 # 🔒 Bezpečnostný zámok (st.stop() vnútri, ak používateľ nie je overený)
 login_zamok()
 
-# Tlačidlo na odhlásenie v bočnom menu
+# Odhlásenie + prepnutie režimu v bočnom menu
 odhlasit_sidebar()
+prepni_rezim_sidebar()
 
 # Načítanie všetkých strojov pre potreby všetkých záložiek
 vsetky_stroje = get_stroje(supabase)
 
+# --- MOBILNÝ REŽIM: len čítanie, obmedzené záložky ---
+if st.session_state.get("rezim") == "mobil":
+    st.markdown(
+        "<style>.block-container {max-width: 48rem; margin: auto;}</style>",
+        unsafe_allow_html=True,
+    )
+    st.title("⚙️ Revízny systém (mobil)")
+
+    tab_kalendar, tab_po_termine, tab_zoznam = st.tabs([
+        "📅 Čo máš v mesiaci",
+        "⚠️ Nevykonané",
+        "📋 Zoznam strojov",
+    ])
+
+    with tab_kalendar:
+        from src.ui.tabs import kalendar
+        kalendar.render(supabase, vsetky_stroje)
+
+    with tab_po_termine:
+        from src.ui.tabs import prehlad
+        prehlad.render_po_termine(supabase, vsetky_stroje)
+
+    with tab_zoznam:
+        from src.ui.tabs import zoznam
+        zoznam.render_kompaktny(supabase, vsetky_stroje)
+
+    st.stop()
+
+# ===================== POČÍTAČOVÝ REŽIM: všetky záložky =====================
 st.title("⚙️ Profesionálny Systém Revízií a Prehliadok")
 
 # --- Rozdelenie stránky na päť záložiek ---
