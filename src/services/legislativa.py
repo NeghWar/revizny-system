@@ -182,6 +182,12 @@ def navrhni_zmeny(stroj: dict) -> tuple[dict, list[str]] | None:
         per_col = PERIODA_STLPEC_KONTROLY.get(kontrola)
         posl_dt = parsuj_datum(stroj.get(posl_col))
 
+        # Rešpektuj ručné označenie „neopakuje sa" (ďalší termín prázdny, ale posledná
+        # vyplnená) — legislatívne pravidlo ho nemá znovu zapínať. Takto sa dajú držať
+        # výnimky (napr. MUV 69 uvedené do prevádzky pred 205/2010).
+        if hodnota is not NEVYKONAVA and stroj.get(kontrola) is None and posl_dt is not None:
+            continue
+
         if hodnota is NEVYKONAVA:
             if kontrola in KONTROLY_NEZMAZAT:
                 continue
