@@ -334,9 +334,18 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         clear_rev_sk = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_revsk_{stroj_id}")
                         new_opakuje_rev_sk = st.checkbox("🔁 Opakuje sa", value=opakuje_rev_sk, key=f"opak_revsk_{stroj_id}", help=HELP_OPAKUJE)
 
-                        list_p_rev = [3, 2, 1]
-                        p_rev_idx = list_p_rev.index(stroj_p_rev) if stroj_p_rev in list_p_rev else 1
-                        new_p_rev = st.selectbox("Perióda Revíznej skúšky (roky):", list_p_rev, index=p_rev_idx, key=f"sel_rev_{stroj_id}")
+                        list_p_rev = [0, 3, 2, 1]
+                        if stroj.get("nasledujuca_revizna_skuska") is None:
+                            p_rev_idx = 0  # kontrola sa neopakuje
+                        else:
+                            p_rev_idx = list_p_rev.index(stroj_p_rev) if stroj_p_rev in list_p_rev else list_p_rev.index(2)
+                        new_p_rev = st.selectbox(
+                            "Perióda Revíznej skúšky (roky):",
+                            list_p_rev,
+                            index=p_rev_idx,
+                            format_func=lambda x: "neopakuje sa" if x == 0 else f"{x} rok(y)",
+                            key=f"sel_rev_{stroj_id}",
+                        )
 
                         st.markdown("---")
                         st.markdown("**3. Podrobná prehliadka OK (5-ročne)**")
@@ -351,9 +360,18 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         clear_urad = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_urad_{stroj_id}")
                         new_opakuje_urad = st.checkbox("🔁 Opakuje sa", value=opakuje_urad, key=f"opak_urad_{stroj_id}", help=HELP_OPAKUJE)
 
-                        list_p_urad = [10, 9, 6, 5, 4, 3]
-                        p_urad_idx = list_p_urad.index(stroj_p_urad) if stroj_p_urad in list_p_urad else 3
-                        new_p_urad = st.selectbox("Perióda Úradnej skúšky (roky):", list_p_urad, index=p_urad_idx, key=f"sel_urad_{stroj_id}")
+                        list_p_urad = [0, 10, 9, 6, 5, 4, 3]
+                        if stroj.get("nasledujuca_uradna_skuska") is None:
+                            p_urad_idx = 0  # kontrola sa neopakuje
+                        else:
+                            p_urad_idx = list_p_urad.index(stroj_p_urad) if stroj_p_urad in list_p_urad else list_p_urad.index(5)
+                        new_p_urad = st.selectbox(
+                            "Perióda Úradnej skúšky (roky):",
+                            list_p_urad,
+                            index=p_urad_idx,
+                            format_func=lambda x: "neopakuje sa" if x == 0 else f"{x} rokov",
+                            key=f"sel_urad_{stroj_id}",
+                        )
 
                         st.markdown("---")
                         st.markdown("**5. Odborná prehliadka**")
@@ -361,13 +379,16 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         clear_odb_pr = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_odbpr_{stroj_id}")
                         new_opakuje_odb_pr = st.checkbox("🔁 Opakuje sa", value=opakuje_odb_pr, key=f"opak_odbpr_{stroj_id}", help=HELP_OPAKUJE)
 
-                        list_p_odbpr = [3.0, 2.0, 1.0, 0.5, 0.25]
-                        p_odbpr_idx = list_p_odbpr.index(stroj_p_odbpr) if stroj_p_odbpr in list_p_odbpr else 2
+                        list_p_odbpr = [0, 3.0, 2.0, 1.0, 0.5, 0.25]
+                        if stroj.get("nasledujuca_odborna_prehliadka") is None:
+                            p_odbpr_idx = 0  # kontrola sa neopakuje
+                        else:
+                            p_odbpr_idx = list_p_odbpr.index(stroj_p_odbpr) if stroj_p_odbpr in list_p_odbpr else list_p_odbpr.index(1.0)
                         new_p_odbpr = st.selectbox(
                             "Interval Odbornej prehliadky:",
                             list_p_odbpr,
                             index=p_odbpr_idx,
-                            format_func=lambda x: "3 roky" if x == 3.0 else ("2 roky" if x == 2.0 else ("1 rok (ročne)" if x == 1.0 else ("6 mesiacov (polročne)" if x == 0.5 else "3 mesiace (štvrťročne)"))),
+                            format_func=lambda x: "neopakuje sa" if x == 0 else ("3 roky" if x == 3.0 else ("2 roky" if x == 2.0 else ("1 rok (ročne)" if x == 1.0 else ("6 mesiacov (polročne)" if x == 0.5 else "3 mesiace (štvrťročne)")))),
                             key=f"sel_odbpr_{stroj_id}",
                         )
 
@@ -377,9 +398,18 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         clear_odb_sk = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_odbsk_{stroj_id}")
                         new_opakuje_odb_sk = st.checkbox("🔁 Opakuje sa", value=opakuje_odb_sk, key=f"opak_odbsk_{stroj_id}", help=HELP_OPAKUJE)
 
-                        list_p_odbsk = [6, 4, 3, 2, 1]
-                        p_odbsk_idx = list_p_odbsk.index(stroj_p_odbsk) if stroj_p_odbsk in list_p_odbsk else 4
-                        new_p_odbsk = st.selectbox("Perióda Odbornej skúšky (roky):", list_p_odbsk, index=p_odbsk_idx, key=f"sel_odbsk_{stroj_id}")
+                        list_p_odbsk = [0, 6, 4, 3, 2, 1]
+                        if stroj.get("nasledujuca_odborna_skuska") is None:
+                            p_odbsk_idx = 0  # kontrola sa neopakuje
+                        else:
+                            p_odbsk_idx = list_p_odbsk.index(stroj_p_odbsk) if stroj_p_odbsk in list_p_odbsk else list_p_odbsk.index(1)
+                        new_p_odbsk = st.selectbox(
+                            "Perióda Odbornej skúšky (roky):",
+                            list_p_odbsk,
+                            index=p_odbsk_idx,
+                            format_func=lambda x: "neopakuje sa" if x == 0 else f"{x} rok(y)",
+                            key=f"sel_odbsk_{stroj_id}",
+                        )
 
                     st.markdown("---")
                     st.markdown("**Poznámka k stroju**")
@@ -411,19 +441,19 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         n_rev = vypocitaj_nasledujuci(final_rev, 1) if new_opakuje_rev else None
 
                         final_rev_sk = None if clear_rev_sk else new_rev_sk
-                        n_rev_sk = vypocitaj_nasledujuci(final_rev_sk, int(new_p_rev)) if new_opakuje_rev_sk else None
+                        n_rev_sk = vypocitaj_nasledujuci(final_rev_sk, int(new_p_rev)) if (new_opakuje_rev_sk and int(new_p_rev) > 0) else None
 
                         final_pod_ok = None if clear_pod_ok else new_pod_ok
                         n_pod_ok = vypocitaj_nasledujuci(final_pod_ok, 5) if new_opakuje_pod_ok else None
 
                         final_urad = None if clear_urad else new_urad
-                        n_urad = vypocitaj_nasledujuci(final_urad, int(new_p_urad)) if new_opakuje_urad else None
+                        n_urad = vypocitaj_nasledujuci(final_urad, int(new_p_urad)) if (new_opakuje_urad and int(new_p_urad) > 0) else None
 
                         final_odb_pr = None if clear_odb_pr else new_odb_pr
-                        n_odb_pr = vypocitaj_nasledujuci(final_odb_pr, new_p_odbpr) if new_opakuje_odb_pr else None
+                        n_odb_pr = vypocitaj_nasledujuci(final_odb_pr, new_p_odbpr) if (new_opakuje_odb_pr and new_p_odbpr > 0) else None
 
                         final_odb_sk = None if clear_odb_sk else new_odb_sk
-                        n_odb_sk = vypocitaj_nasledujuci(final_odb_sk, int(new_p_odbsk)) if new_opakuje_odb_sk else None
+                        n_odb_sk = vypocitaj_nasledujuci(final_odb_sk, int(new_p_odbsk)) if (new_opakuje_odb_sk and int(new_p_odbsk) > 0) else None
 
                         final_geom = None if (clear_geom or not new_ma_geom) else new_geom
                         n_geom = vypocitaj_nasledujuci(final_geom, 10) if new_ma_geom else None
