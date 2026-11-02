@@ -16,6 +16,10 @@ Termin sa pocita vyhradne z datumu "posledna" + perioda:
 STROJE, KTORÉ NEMAJÚ VYPLNENÚ "POSLEDNÚ" KONTROLU, SA NEPREPOČÍTAVAJÚ
 (termin nema z coho vychadzat).
 
+POZOR: kontrola s prázdnym ďalším termínom (ale vyplnenou poslednou) sa berie ako
+„neopakuje sa" (nastavené v aplikácii pri stroji) a štandardne sa PRESKAKUJE.
+Ak ich chceš násilne prepnúť na ďalší termín, použi prepínač --vratane-vypnutych.
+
 Pouzitie (spustaj z korena projektu):
 
     python nastroje/prepocitaj_terminy.py            # DRY-RUN (len vypise zmeny + report)
@@ -125,6 +129,14 @@ def main() -> int:
         action="store_true",
         help="Zapise zmeny do databazy (bez tohto prepinaca ide len o dry-run).",
     )
+    parser.add_argument(
+        "--vratane-vypnutych",
+        action="store_true",
+        help=(
+            "Prepocita aj kontroly s prazdnym dalsim terminom (v aplikacii oznacene "
+            "ako 'neopakuje sa'). Bez tohoto prepinaca sa take kontroly preskakuju."
+        ),
+    )
     args = parser.parse_args()
 
     supabase = _nacitaj_klienta()
@@ -151,6 +163,11 @@ def main() -> int:
             novy = vypocitaj_nasledujuci(posl_dt, perioda)
             novy_iso = novy.isoformat() if novy else None
             stary_iso = stroj.get(nasl_col)
+
+            # Ak je ďalší termín prázdny a posledná kontrola vyplnená, znamená to,
+            # že kontrola sa na stroji NEOpakuje (nastavené v aplikácii) — nechávame tak.
+            if stary_iso is None and not args.vratane_vypnutych:
+                continue
 
             if novy_iso != stary_iso:
                 zmeny[nasl_col] = novy_iso

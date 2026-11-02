@@ -11,6 +11,13 @@ from src.services import excel
 from src.services.revizie import parsuj_datum, vypocitaj_nasledujuci
 from src.ui.components import formatuj_datum_s_farbou
 
+# Pomôcka k zaškrtávaciemu poľu „Opakuje sa" (používa sa pri každej kontrole).
+HELP_OPAKUJE = (
+    "Ak odškrtneš, kontrola sa na tomto stroji už nebude pravidelne opakovať "
+    "(napr. úradná skúška býva len uvádzacia/komisionálna). "
+    "Dátum poslednej kontroly zostane, ale systém nebude žiadať ďalší termín."
+)
+
 
 def _zisti_predvoleny_datum(stroj: dict, posledny_kluc: str, nasledujuci_kluc: str, minus_roky=1):
     """Vráti predvolený dátum pre edit formulár.
@@ -299,6 +306,15 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                 db_odb_sk = _zisti_predvoleny_datum(stroj, "posledna_odborna_skuska", "nasledujuca_odborna_skuska", minus_roky=stroj_p_odbsk)
                 db_geom = _zisti_predvoleny_datum(stroj, "posledna_geometria", "nasledujuca_geometria", minus_roky=10)
 
+                # „Opakuje sa?" — predvolene podľa toho, či je naplánovaný ďalší termín.
+                # Ak ďalší termín chýba, kontrola sa berie ako jednorazová (neopakuje sa).
+                opakuje_rev = stroj.get("nasledujuca_revizia") is not None
+                opakuje_rev_sk = stroj.get("nasledujuca_revizna_skuska") is not None
+                opakuje_pod_ok = stroj.get("nasledujuca_podrobna_prehliadka_ok") is not None
+                opakuje_urad = stroj.get("nasledujuca_uradna_skuska") is not None
+                opakuje_odb_pr = stroj.get("nasledujuca_odborna_prehliadka") is not None
+                opakuje_odb_sk = stroj.get("nasledujuca_odborna_skuska") is not None
+
                 with st.form(key=f"form_edit_{stroj_id}", clear_on_submit=False):
                     e_col1, e_col2 = st.columns(2)
 
@@ -310,11 +326,13 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         st.markdown("**1. Revízia (ročne)**")
                         new_rev = st.date_input("Dátum poslednej revízie:", db_rev, key=f"inp_rev_{stroj_id}")
                         clear_rev = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_rev_{stroj_id}")
+                        new_opakuje_rev = st.checkbox("🔁 Opakuje sa", value=opakuje_rev, key=f"opak_rev_{stroj_id}", help=HELP_OPAKUJE)
 
                         st.markdown("---")
                         st.markdown("**2. Revízna skúška**")
                         new_rev_sk = st.date_input("Dátum poslednej rev. skúšky:", db_rev_sk, key=f"inp_revsk_{stroj_id}")
                         clear_rev_sk = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_revsk_{stroj_id}")
+                        new_opakuje_rev_sk = st.checkbox("🔁 Opakuje sa", value=opakuje_rev_sk, key=f"opak_revsk_{stroj_id}", help=HELP_OPAKUJE)
 
                         list_p_rev = [3, 2, 1]
                         p_rev_idx = list_p_rev.index(stroj_p_rev) if stroj_p_rev in list_p_rev else 1
@@ -324,12 +342,14 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         st.markdown("**3. Podrobná prehliadka OK (5-ročne)**")
                         new_pod_ok = st.date_input("Dátum poslednej podrobnej pr.:", db_pod_ok, key=f"inp_pod_{stroj_id}")
                         clear_pod_ok = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_pod_{stroj_id}")
+                        new_opakuje_pod_ok = st.checkbox("🔁 Opakuje sa", value=opakuje_pod_ok, key=f"opak_pod_{stroj_id}", help=HELP_OPAKUJE)
 
                     with e_col2:
                         st.markdown("---")
                         st.markdown("**4. Úradná skúška**")
                         new_urad = st.date_input("Dátum poslednej úradnej sk.:", db_urad, key=f"inp_urad_{stroj_id}")
                         clear_urad = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_urad_{stroj_id}")
+                        new_opakuje_urad = st.checkbox("🔁 Opakuje sa", value=opakuje_urad, key=f"opak_urad_{stroj_id}", help=HELP_OPAKUJE)
 
                         list_p_urad = [10, 9, 6, 5, 4, 3]
                         p_urad_idx = list_p_urad.index(stroj_p_urad) if stroj_p_urad in list_p_urad else 3
@@ -339,6 +359,7 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         st.markdown("**5. Odborná prehliadka**")
                         new_odb_pr = st.date_input("Dátum poslednej odbornej pr.:", db_odb_pr, key=f"inp_odbpr_{stroj_id}")
                         clear_odb_pr = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_odbpr_{stroj_id}")
+                        new_opakuje_odb_pr = st.checkbox("🔁 Opakuje sa", value=opakuje_odb_pr, key=f"opak_odbpr_{stroj_id}", help=HELP_OPAKUJE)
 
                         list_p_odbpr = [3.0, 2.0, 1.0, 0.5, 0.25]
                         p_odbpr_idx = list_p_odbpr.index(stroj_p_odbpr) if stroj_p_odbpr in list_p_odbpr else 2
@@ -354,6 +375,7 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                         st.markdown("**6. Odborná skúška**")
                         new_odb_sk = st.date_input("Dátum poslednej odbornej sk.:", db_odb_sk, key=f"inp_odbsk_{stroj_id}")
                         clear_odb_sk = st.checkbox("🗑️ Vymazať / Nechať nezaevidované", value=False, key=f"clear_odbsk_{stroj_id}")
+                        new_opakuje_odb_sk = st.checkbox("🔁 Opakuje sa", value=opakuje_odb_sk, key=f"opak_odbsk_{stroj_id}", help=HELP_OPAKUJE)
 
                         list_p_odbsk = [6, 4, 3, 2, 1]
                         p_odbsk_idx = list_p_odbsk.index(stroj_p_odbsk) if stroj_p_odbsk in list_p_odbsk else 4
@@ -386,22 +408,22 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                     # === FINÁLNE UKLADANIE ZMIEN ===
                     if st.form_submit_button("💾 Uložiť zmeny stroja"):
                         final_rev = None if clear_rev else new_rev
-                        n_rev = vypocitaj_nasledujuci(final_rev, 1)
+                        n_rev = vypocitaj_nasledujuci(final_rev, 1) if new_opakuje_rev else None
 
                         final_rev_sk = None if clear_rev_sk else new_rev_sk
-                        n_rev_sk = vypocitaj_nasledujuci(final_rev_sk, int(new_p_rev))
+                        n_rev_sk = vypocitaj_nasledujuci(final_rev_sk, int(new_p_rev)) if new_opakuje_rev_sk else None
 
                         final_pod_ok = None if clear_pod_ok else new_pod_ok
-                        n_pod_ok = vypocitaj_nasledujuci(final_pod_ok, 5)
+                        n_pod_ok = vypocitaj_nasledujuci(final_pod_ok, 5) if new_opakuje_pod_ok else None
 
                         final_urad = None if clear_urad else new_urad
-                        n_urad = vypocitaj_nasledujuci(final_urad, int(new_p_urad))
+                        n_urad = vypocitaj_nasledujuci(final_urad, int(new_p_urad)) if new_opakuje_urad else None
 
                         final_odb_pr = None if clear_odb_pr else new_odb_pr
-                        n_odb_pr = vypocitaj_nasledujuci(final_odb_pr, new_p_odbpr)
+                        n_odb_pr = vypocitaj_nasledujuci(final_odb_pr, new_p_odbpr) if new_opakuje_odb_pr else None
 
                         final_odb_sk = None if clear_odb_sk else new_odb_sk
-                        n_odb_sk = vypocitaj_nasledujuci(final_odb_sk, int(new_p_odbsk))
+                        n_odb_sk = vypocitaj_nasledujuci(final_odb_sk, int(new_p_odbsk)) if new_opakuje_odb_sk else None
 
                         final_geom = None if (clear_geom or not new_ma_geom) else new_geom
                         n_geom = vypocitaj_nasledujuci(final_geom, 10) if new_ma_geom else None
