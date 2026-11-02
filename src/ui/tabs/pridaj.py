@@ -3,6 +3,7 @@
 import streamlit as st
 
 from src.db import supabase_client as db
+from src.services import legislativa
 from src.services.revizie import vypocitaj_nasledujuci
 
 
@@ -51,6 +52,43 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
                 st.rerun()
 
     else:
+        # --- VOĽBA KATEGÓRIE (mimo formulára, aby vedela ovplyvniť periódy) ---
+        st.markdown("**1) Kategória zariadenia** — podľa nej sa doplnia periódy z vyhlášky:")
+        c_k1, c_k2, c_k3 = st.columns(3)
+        with c_k1:
+            druh_systemu = st.selectbox("Druh systému:", ["-", "VTZ", "UTZ"], key="add_druh_systemu")
+        with c_k2:
+            legislativna_skupina = st.text_input(
+                "Legislatívna skupina:", key="add_leg_skupina", placeholder="Napr. Z1.7 / B"
+            )
+        with c_k3:
+            legislativny_druh = st.text_input(
+                "Legislatívny druh (pri VTZ):", key="add_leg_druh", placeholder="Napr. i / b"
+            )
+
+        pravidla = legislativa.najdi_pravidla(
+            druh_systemu if druh_systemu != "-" else None, legislativna_skupina, legislativny_druh
+        )
+        if pravidla:
+            st.success("✅ Kategória rozpoznaná — periódy a „nevykonáva sa\" sa doplnia podľa vyhlášky.")
+        elif druh_systemu != "-" and (legislativna_skupina or "").strip():
+            st.warning("⚠️ Pre túto kategóriu pravidlá nemám — periódy nastav ručne.")
+
+        def _idx(kontrola: str, ponuka: list, fallback):
+            """Index do 'ponuka' podľa legislatívneho pravidla (inak 'fallback')."""
+            if pravidla and kontrola in pravidla:
+                hodnota = pravidla[kontrola]
+                if hodnota is None:  # nevykonáva sa
+                    if 0 in ponuka:
+                        return ponuka.index(0)
+                elif isinstance(hodnota, (int, float)):
+                    for i, v in enumerate(ponuka):
+                        if float(v) == float(hodnota):
+                            return i
+            return ponuka.index(fallback)
+
+        st.markdown("---")
+
         # --- ŠTANDARDNÝ FORMULÁR PRE EVIDENCIU ---
         with st.form(key="novy_stroj_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
@@ -71,16 +109,8 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
             with col_z2:
                 voj = st.text_input("VOJ:", placeholder="Napr. 12345")
 
-            col_l1, col_l2, col_l3 = st.columns(3)
-            with col_l1:
-                druh_systemu = st.selectbox("Druh systému:", ["-", "VTZ", "UTZ"], key="add_druh_systemu")
-            with col_l2:
-                legislativna_skupina = st.text_input("Legislatívna skupina:", placeholder="Napr. A")
-            with col_l3:
-                legislativny_druh = st.text_input("Legislatívny druh:", placeholder="Napr. zdvíhadlo")
-
             st.markdown("---")
-            st.subheader("Zadajte dátumy posledných vykonaných kontrol a ich periódy:")
+            st.subheader("2) Zadajte dátumy posledných vykonaných kontrol (periódy sa doplnia):")
 
             c1, c2 = st.columns(2)
             with c1:
@@ -88,7 +118,14 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
 
                 st.markdown("**Revízna skúška**")
                 p_revizna_sk = st.date_input("Posledná Revízna skúška:", None, key="add_d_revsk")
-                perioda_reviznej = st.selectbox("Perióda Revíznej skúšky:", [3, 2, 1], format_func=lambda x: f"{x} rok(y)", key="add_p_revsk")
+                _ponuka_revsk = [0, 3, 2, 1]
+                perioda_reviznej = st.selectbox(
+                    "Perióda Revíznej skúšky:",
+                    _ponuka_revsk,
+                    index=_idx("nasledujuca_revizna_skuska", _ponuka_revsk, 2),
+                    format_func=lambda x: "neopakuje sa" if x == 0 else f"{x} rok(y)",
+                    key="add_p_revsk",
+                )
 
                 st.markdown("**Podrobná prehliadka OK**")
                 p_podrobna_ok = st.date_input("Posledná Podrobná prehliadka OK (opakuje sa 5-ročne):", None)
@@ -96,21 +133,37 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
             with c2:
                 st.markdown("**Úradná skúška**")
                 p_uradna = st.date_input("Posledná Úradná skúška:", None, key="add_d_urad")
-                napoveda_vtz_utz = "💡 Pomôcka pre lehoty úradných skúšok:\n\n• UTZ: platia termíny 9, 6, 5, 4, 3 rokov podľa typu zariadenia.\n• VTZ: platia termíny 10 alebo 6 rokov."
-                perioda_uradnej = st.selectbox("Perióda Úradnej skúšky:", [10, 9, 6, 5, 4, 3], format_func=lambda x: f"{x} rokov", key="add_p_urad", help=napoveda_vtz_utz)
+                napoveda_vtz_utz = "Periódy sa doplnia podľa kategórie. UTZ: 9, 6, 5, 4, 3 r.; VTZ: 10 alebo 6 r."
+                _ponuka_urad = [0, 10, 9, 6, 5, 4, 3]
+                perioda_uradnej = st.selectbox(
+                    "Perióda Úradnej skúšky:",
+                    _ponuka_urad,
+                    index=_idx("nasledujuca_uradna_skuska", _ponuka_urad, 5),
+                    format_func=lambda x: "neopakuje sa" if x == 0 else f"{x} rokov",
+                    key="add_p_urad", help=napoveda_vtz_utz,
+                )
 
                 st.markdown("**Odborná prehliadka**")
                 p_odborna_pr = st.date_input("Posledná Odborná prehliadka:", None, key="add_d_odbpr")
+                _ponuka_odbpr = [0, 3.0, 2.0, 1.0, 0.5, 0.25]
                 interval_odborna_pr = st.selectbox(
                     "Interval Odbornej prehliadky:",
-                    [3.0, 2.0, 1.0, 0.5, 0.25],
-                    format_func=lambda x: "3 roky" if x == 3.0 else ("2 roky" if x == 2.0 else ("1 rok (ročne)" if x == 1.0 else ("6 mesiacov (polročne)" if x == 0.5 else "3 mesiace (štvrťročne)"))),
+                    _ponuka_odbpr,
+                    index=_idx("nasledujuca_odborna_prehliadka", _ponuka_odbpr, 1.0),
+                    format_func=lambda x: "neopakuje sa" if x == 0 else ("3 roky" if x == 3.0 else ("2 roky" if x == 2.0 else ("1 rok (ročne)" if x == 1.0 else ("6 mesiacov (polročne)" if x == 0.5 else "3 mesiace (štvrťročne)")))),
                     key="add_p_odbpr",
                 )
 
                 st.markdown("**Odborná skúška**")
                 p_odborna_sk = st.date_input("Posledná Odborná skúška:", None, key="add_d_odbsk")
-                perioda_odbornej_sk = st.selectbox("Perióda Odbornej skúšky:", [6, 4, 3, 2, 1], format_func=lambda x: f"{x} rok(ov)", key="add_p_odbsk")
+                _ponuka_odbsk = [0, 6, 4, 3, 2, 1]
+                perioda_odbornej_sk = st.selectbox(
+                    "Perióda Odbornej skúšky:",
+                    _ponuka_odbsk,
+                    index=_idx("nasledujuca_odborna_skuska", _ponuka_odbsk, 1),
+                    format_func=lambda x: "neopakuje sa" if x == 0 else f"{x} rok(ov)",
+                    key="add_p_odbsk",
+                )
 
             st.markdown("---")
             ma_geometriu = st.checkbox("Vykonáva sa na tomto stroji Geometrické zameranie žeriavovej dráhy? (10 rokov)")
@@ -130,9 +183,15 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
 
         # --- SPRACOVANIE FORMULÁRA PO STLAČENÍ ULOŽIŤ ---
         if tlacidlo_ulozit and nazov:
-            n_rev = vypocitaj_nasledujuci(p_revizia, 1)
+            def _nasled(kontrola: str, posledny, perioda):
+                """Dopočíta termín; ak sa kontrola podľa kategórie nevykonáva, vráti None."""
+                if pravidla and kontrola in pravidla and pravidla[kontrola] is None:
+                    return None
+                return vypocitaj_nasledujuci(posledny, perioda)
+
+            n_rev = _nasled("nasledujuca_revizia", p_revizia, 1)
             n_rev_sk = vypocitaj_nasledujuci(p_revizna_sk, perioda_reviznej)
-            n_pod_ok = vypocitaj_nasledujuci(p_podrobna_ok, 5)
+            n_pod_ok = _nasled("nasledujuca_podrobna_prehliadka_ok", p_podrobna_ok, 5)
             n_urad = vypocitaj_nasledujuci(p_uradna, perioda_uradnej)
             n_odb_pr = vypocitaj_nasledujuci(p_odborna_pr, interval_odborna_pr)
             n_odb_sk = vypocitaj_nasledujuci(p_odborna_sk, perioda_odbornej_sk)
