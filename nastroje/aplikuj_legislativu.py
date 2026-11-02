@@ -29,61 +29,13 @@ except Exception:
 
 from supabase import create_client  # noqa: E402
 
-from src.config import ODPOVEDAJUCE_POSLEDNE  # noqa: E402
-from src.services.legislativa import (  # noqa: E402
-    KONTROLY_NEZMAZAT,
-    NEVYKONAVA,
-    PERIODA_STLPEC_KONTROLY,
-    VYROBCA,
-    najdi_pravidla,
-    normalizuj,
-)
-from src.services.revizie import parsuj_datum, vypocitaj_nasledujuci  # noqa: E402
+from src.services.legislativa import navrhni_zmeny, normalizuj  # noqa: E402
 
 
 def _klient():
     subor = KOREN / ".streamlit" / "secrets.toml"
     data = tomllib.load(subor.open("rb"))
     return create_client(data["SUPABASE_URL"], data["SUPABASE_KEY"])
-
-
-def _cielovy_stav(stroj: dict, pravidla: dict) -> tuple[dict, list[str]]:
-    """Vráti (zmeny, chýbajúce_manualne) pre jeden stroj podľa pravidiel."""
-    zmeny: dict = {}
-    manualne: list[str] = []
-
-    for kontrola, hodnota in pravidla.items():
-        posl_col = ODPOVEDAJUCE_POSLEDNE.get(kontrola)
-        if posl_col is None:
-            continue
-        per_col = PERIODA_STLPEC_KONTROLY.get(kontrola)
-        posl_dt = parsuj_datum(stroj.get(posl_col))
-
-        if hodnota is NEVYKONAVA:
-            if kontrola in KONTROLY_NEZMAZAT:
-                continue
-            if stroj.get(kontrola) is not None:
-                zmeny[kontrola] = None
-            continue
-
-        if hodnota == VYROBCA:
-            existujuca = stroj.get(per_col) if per_col else None
-            if not existujuca:
-                manualne.append(kontrola)
-                continue
-            perioda = existujuca
-        else:
-            perioda = hodnota
-            if per_col and stroj.get(per_col) != hodnota:
-                zmeny[per_col] = hodnota
-
-        if posl_dt:
-            novy = vypocitaj_nasledujuci(posl_dt, perioda)
-            novy_iso = novy.isoformat() if novy else None
-            if novy_iso != stroj.get(kontrola):
-                zmeny[kontrola] = novy_iso
-
-    return zmeny, manualne
 
 
 def main() -> int:
@@ -105,14 +57,12 @@ def main() -> int:
         kat_kluc = normalizuj(s.get("druh_systemu")) + " " + normalizuj(s.get("legislativna_skupina"))
         if (s.get("legislativny_druh") or "").strip():
             kat_kluc += "/" + normalizuj(s.get("legislativny_druh"))
-        pravidla = najdi_pravidla(
-            s.get("druh_systemu"), s.get("legislativna_skupina"), s.get("legislativny_druh")
-        )
-        if not pravidla:
+        vysledok = navrhni_zmeny(s)
+        if vysledok is None:
             nezname_kat[kat_kluc] += 1
             continue
 
-        zmeny, manualne = _cielovy_stav(s, pravidla)
+        zmeny, manualne = vysledok
         for k in manualne:
             manualne_podla_kat[kat_kluc].append(f"{s['nazov']} :: {k}")
 

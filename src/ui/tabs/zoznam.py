@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 
 from src.config import KONTROLY, ODPOVEDAJUCE_POSLEDNE, POSLEDNA_NAZVY
 from src.db import supabase_client as db
-from src.services import excel
+from src.services import excel, legislativa
 from src.services.revizie import parsuj_datum, vypocitaj_nasledujuci
 from src.ui.components import formatuj_datum_s_farbou
 
@@ -64,6 +64,69 @@ def render(supabase, vsetky_stroje: list[dict]) -> None:
     dovody_podla_stroja: dict = {}
     for p in db.get_poznamky(supabase):
         dovody_podla_stroja.setdefault(p["stroj_id"], {})[p["typ_kontroly"]] = p.get("text_poznamky")
+
+    # ==================== LEGISLATÍVNE PERIÓDY (HROMADNE) ====================
+    with st.expander("⚙️ Legislatívne periódy — hromadná kontrola a prepis"):
+        st.caption(
+            "Podľa kategórie stroja (VTZ skupina/druh alebo UTZ Z1.x/Z2.x) vie systém nastaviť "
+            "správne periódy a zrušiť kontroly, ktoré sa podľa vyhlášky nevykonávajú "
+            "(508/2009 príloha č. 7 a 205/2010 príloha č. 4). "
+            "Kategórie, kde lehotu určuje výrobca, sa nemenia."
+        )
+
+        if st.button("🔍 Zobraziť návrh zmien", key="leg_nahlad"):
+            navrhy: list[dict] = []
+            manualne: dict[str, int] = {}
+            for s in vsetky_stroje:
+                vysledok = legislativa.navrhni_zmeny(s)
+                if vysledok is None:
+                    continue
+                zmeny, man = vysledok
+                kat = f"{s.get('druh_systemu') or '?'} {s.get('legislativna_skupina') or '?'}"
+                for stlpec, nova in zmeny.items():
+                    navrhy.append({
+                        "Stroj": s["nazov"], "Kategória": kat, "Pole": stlpec,
+                        "Pôvodné": s.get(stlpec), "Nové": nova,
+                        "_id": s["id"], "_pole": stlpec, "_nova": nova,
+                    })
+                for _ in man:
+                    manualne[kat] = manualne.get(kat, 0) + 1
+            st.session_state["leg_navrhy"] = navrhy
+            st.session_state["leg_manualne"] = manualne
+
+        navrhy = st.session_state.get("leg_navrhy")
+        if navrhy is not None:
+            manualne = st.session_state.get("leg_manualne") or {}
+            if not navrhy:
+                st.success("Všetko je v súlade s legislatívou — žiadne zmeny.")
+            else:
+                st.warning(f"Navrhovaných zmien: **{len(navrhy)}**. Skontroluj a potvrď zápis.")
+                st.dataframe(
+                    [{k: v for k, v in r.items() if not k.startswith("_")} for r in navrhy],
+                    use_container_width=True, hide_index=True,
+                )
+                if st.button(f"💾 Zapísať {len(navrhy)} zmien do databázy", key="leg_zapis"):
+                    podla_stroja: dict = {}
+                    for r in navrhy:
+                        podla_stroja.setdefault(r["_id"], {})[r["_pole"]] = r["_nova"]
+                    chyby = 0
+                    for sid, data in podla_stroja.items():
+                        try:
+                            db.update_stroj(supabase, sid, data)
+                        except Exception:
+                            chyby += 1
+                    st.session_state["leg_navrhy"] = None
+                    st.session_state["leg_manualne"] = None
+                    if chyby:
+                        st.error(f"Časť nezapísaná — zlyhalo {chyby} strojov.")
+                    else:
+                        st.toast("Zmeny boli zapísané. 💾")
+                    st.rerun()
+            if manualne:
+                st.info(
+                    "Lehotu určuje výrobca — doplň ručne: "
+                    + ", ".join(f"{k} ({v}×)" for k, v in sorted(manualne.items()))
+                )
 
     # ==================== FILTRE ====================
     vsetky_firmy = sorted({s.get("firma") for s in vsetky_stroje if s.get("firma")})

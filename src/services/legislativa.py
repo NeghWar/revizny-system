@@ -154,3 +154,59 @@ PERIODA_STLPEC_KONTROLY: dict[str, str | None] = {
 KONTROLY_NEZMAZAT: set[str] = {"nasledujuca_podrobna_prehliadka_ok"}
 
 
+from src.config import ODPOVEDAJUCE_POSLEDNE  # noqa: E402
+from src.services.revizie import parsuj_datum, vypocitaj_nasledujuci  # noqa: E402
+
+
+def navrhni_zmeny(stroj: dict) -> tuple[dict, list[str]] | None:
+    """Navrhne zmeny na stroji podľa legislatívnych pravidiel.
+
+    Vráti `(zmeny, manualne)`:
+      - `zmeny`    = {db_stĺpec: nová_hodnota} (čo treba prepísať),
+      - `manualne` = zoznam kontrol, ktorých lehotu určuje výrobca.
+    Ak pre kategóriu stroja pravidlá neexistujú, vráti `None`.
+    """
+    pravidla = najdi_pravidla(
+        stroj.get("druh_systemu"), stroj.get("legislativna_skupina"), stroj.get("legislativny_druh")
+    )
+    if not pravidla:
+        return None
+
+    zmeny: dict = {}
+    manualne: list[str] = []
+
+    for kontrola, hodnota in pravidla.items():
+        posl_col = ODPOVEDAJUCE_POSLEDNE.get(kontrola)
+        if posl_col is None:
+            continue
+        per_col = PERIODA_STLPEC_KONTROLY.get(kontrola)
+        posl_dt = parsuj_datum(stroj.get(posl_col))
+
+        if hodnota is NEVYKONAVA:
+            if kontrola in KONTROLY_NEZMAZAT:
+                continue
+            if stroj.get(kontrola) is not None:
+                zmeny[kontrola] = None
+            continue
+
+        if hodnota == VYROBCA:
+            existujuca = stroj.get(per_col) if per_col else None
+            if not existujuca:
+                manualne.append(kontrola)
+                continue
+            perioda = existujuca
+        else:
+            perioda = hodnota
+            if per_col and stroj.get(per_col) != hodnota:
+                zmeny[per_col] = hodnota
+
+        if posl_dt:
+            novy = vypocitaj_nasledujuci(posl_dt, perioda)
+            novy_iso = novy.isoformat() if novy else None
+            if novy_iso != stroj.get(kontrola):
+                zmeny[kontrola] = novy_iso
+
+    return zmeny, manualne
+
+
+
