@@ -602,9 +602,37 @@ def render_kompaktny(supabase, vsetky_stroje: list[dict]) -> None:
     a prehľad strojov s termínmi a poznámkami.
     """
     st.header("📋 Zoznam strojov (len na čítanie)")
+
+    # 1) Rýchle filtrovanie textom (podľa názvu / evidenčného čísla / umiestnenia / VOJ).
     hladanie = st.text_input(
         "🔍 Hľadať stroj:", key="mobil_hladanie", placeholder="Napr. Iveco, GB1/0042, MUV ..."
     )
+
+    # 2) Alebo preskoč priamo na konkrétny stroj z rozbaľovacieho zoznamu.
+    #    Do poľa sa dá aj písať — zoznam sa filtruje počas písania a po výbere
+    #    sa zobrazí len ten jeden stroj (rýchly „skok" namiesto listovania).
+    _VOLBA_VSETKY = "— zobraziť všetky stroje —"
+    _moznosti: list[str] = [_VOLBA_VSETKY]
+    _id_podla_volby: dict[str, object] = {}
+    for _s in sorted(vsetky_stroje, key=lambda s: (s.get("nazov") or "").lower()):
+        _popis = "  •  ".join(
+            [
+                (s.get("nazov") or "?").strip(),
+                ((s.get("evidencne_cislo") or "").strip() or "—"),
+                ((s.get("umiestnenie") or "").strip() or "—"),
+            ]
+        )
+        _moznosti.append(_popis)
+        _id_podla_volby[_popis] = _s.get("id")
+
+    vyber = st.selectbox(
+        "🔽 Preskočiť na stroj (napíš názov / evidenčné číslo):",
+        _moznosti,
+        index=0,
+        key="mobil_vyber_stroja",
+        placeholder="Napíš názov, evidenčné číslo alebo umiestnenie…",
+    )
+    vybrany_id = _id_podla_volby.get(vyber) if vyber != _VOLBA_VSETKY else None
 
     dnesny_den = date.today()
     dovody_podla_stroja: dict = {}
@@ -625,13 +653,20 @@ def render_kompaktny(supabase, vsetky_stroje: list[dict]) -> None:
     hladanie_n = (hladanie or "").strip().lower()
     zobrazene = 0
     for stroj in vsetky_stroje:
-        nazov_stroja = (stroj.get("nazov") or "")
-        if (
-            hladanie_n
-            and hladanie_n not in nazov_stroja.lower()
-            and hladanie_n not in (stroj.get("evidencne_cislo") or "").lower()
-        ):
+        # Ak je v rozbaľovacom zozname zvolený konkrétny stroj, zobraz len ten.
+        if vybrany_id is not None and stroj.get("id") != vybrany_id:
             continue
+
+        nazov_stroja = (stroj.get("nazov") or "")
+
+        # Textové hľadanie (aplikuje sa len keď nie je zvolený konkrétny stroj).
+        if vybrany_id is None and hladanie_n:
+            prehladavane = " ".join(
+                str(stroj.get(k) or "")
+                for k in ("nazov", "evidencne_cislo", "umiestnenie", "voj")
+            ).lower()
+            if hladanie_n not in prehladavane:
+                continue
         zobrazene += 1
 
         with st.container(border=True):
