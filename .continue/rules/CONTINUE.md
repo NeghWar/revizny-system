@@ -38,7 +38,7 @@ app.py (entry point)
 
 ### Prerekvizity
 - **Python 3.9+** (odporúčané 3.11+, kvôli `tomllib` v `src/ui/auth.py`)
-- Prístup k Supabase projektu (URL + public key)
+- Prístup k Supabase projektu (URL + **serverový secret** kľúč)
 
 ### Inštalácia
 ```bash
@@ -49,11 +49,14 @@ Obsah `requirements.txt`: `streamlit>=1.29`, `pandas>=2.0`, `openpyxl>=3.1`, `su
 ### Konfigurácia (⚠️ pozor na preklep v názve súboru)
 Aplikácia číta tajomstvá z `.streamlit/secrets.toml`:
 ```toml
-MOJE_TAJNE_HESLO = "..."        # heslo na prihlásenie do aplikácie
+MOJE_TAJNE_HESLO = "..."               # heslo na prihlásenie do aplikácie
 SUPABASE_URL = "https://<projekt>.supabase.co"
-SUPABASE_KEY = "sb_publishable_..."
+SUPABASE_SECRET_KEY = "sb_secret_..."  # serverový kľúč (obchádza RLS, NIKDY do prehliadača)
+SUPABASE_KEY = "sb_publishable_..."    # verejný kľúč — len núdzový fallback
 ```
 > ⚠️ **Existujúca pasca:** v repozitári je súbor pomenovaný `.streamlit/seacrets.toml` (chybné „a"). Aby ho Streamlit načítal, musí sa volať **`secrets.toml`**. `src/ui/auth.py` hľadá priamo `secrets.toml`.
+
+> 🔒 **RLS / prístup k DB:** tabuľky majú zapnutú Row‑Level Security a **žiadne verejné policies** (viď `migracia_rls.sql`). Aplikácia preto komunikuje so Supabase cez **serverový** kľúč `SUPABASE_SECRET_KEY` (obchádza RLS). Verejný `SUPABASE_KEY` je len núdzový fallback počas prechodu.
 
 ### Spustenie
 ```bash
@@ -181,6 +184,7 @@ src/
 | Heslo sa nenačíta / login nefunguje | Súbor sa volá `seacrets.toml`. **Premenuj na `secrets.toml`.** `auth.py` hľadá presne tento názov. |
 | Zmena hesla sa neprejaví | `auth.py` to rieši čítaním TOML priamo z disku pri každom pokuse — uisti sa, že upravuješ správny `secrets.toml` (projektový vs. CWD). |
 | `KeyError: 'SUPABASE_URL'` | Chýbajú kľúče v `secrets.toml` (lokálne) alebo v Streamlit Cloud Secrets. |
+| Chýba `SUPABASE_SECRET_KEY` | Doplň serverový kľúč (Supabase → Settings → API Keys) do secretov. Bez neho appka použije verejný `SUPABASE_KEY` — to funguje len s vypnutou RLS a je nebezpečné. |
 | `TypeError`/`ValueError` pri výpočtoch termínov | Chýbajúca perióda (`None`) alebo nečitateľný dátum. Použi fallback predvolené hodnoty (vid `zoznam.py`). |
 | Dátumy sa posúvajú o deň po uložení | Nekonzistentný inverzný vzorec. Skontroluj `vypocitaj_nasledujuci` a `_zisti_predvoleny_datum`, musia byť presne inverzné (`roky*365 - 1`). |
 | Import z Excelu dal „17.0" namiesto „17" | Ošetrené `ocisti_float_cislo`; uisti sa, že stĺpec je v `MAPOVANIE_NA_DB` ako `cislo_vybavenia`/`evidencne_cislo`. |

@@ -35,7 +35,9 @@ from src.services.legislativa import navrhni_zmeny, normalizuj  # noqa: E402
 def _klient():
     subor = KOREN / ".streamlit" / "secrets.toml"
     data = tomllib.load(subor.open("rb"))
-    return create_client(data["SUPABASE_URL"], data["SUPABASE_KEY"])
+    # Serverovy "secret" kluc obchadza RLS; stary SUPABASE_KEY je len fallback.
+    key = data.get("SUPABASE_SECRET_KEY") or data.get("SUPABASE_KEY")
+    return create_client(data["SUPABASE_URL"], key)
 
 
 def main() -> int:

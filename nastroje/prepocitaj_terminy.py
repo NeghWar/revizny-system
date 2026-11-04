@@ -70,16 +70,22 @@ HRANICA_VELKY_ROZDIEL_DNI = 31
 
 
 def _nacitaj_klienta():
-    """Vytvori Supabase klienta z .streamlit/secrets.toml (rovnako ako aplikacia)."""
+    """Vytvori Supabase klienta z .streamlit/secrets.toml (rovnako ako aplikacia).
+
+    Pouziva serverovy "secret" kluc (SUPABASE_SECRET_KEY, obchadza RLS).
+    Stary SUPABASE_KEY ponechavame len ako nudzovy fallback pocas prechodu.
+    """
     secrets_subor = KOREN / ".streamlit" / "secrets.toml"
     if not secrets_subor.is_file():
         raise SystemExit(f"Chyba subor s klucmi: {secrets_subor}")
     with secrets_subor.open("rb") as f:
         data = tomllib.load(f)
     url = data.get("SUPABASE_URL")
-    key = data.get("SUPABASE_KEY")
+    key = data.get("SUPABASE_SECRET_KEY") or data.get("SUPABASE_KEY")
     if not url or not key:
-        raise SystemExit("V secrets.toml chyba SUPABASE_URL alebo SUPABASE_KEY.")
+        raise SystemExit(
+            "V secrets.toml chyba SUPABASE_URL alebo SUPABASE_SECRET_KEY."
+        )
     return create_client(url, key)
 
 

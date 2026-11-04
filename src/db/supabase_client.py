@@ -3,7 +3,31 @@
 import streamlit as st
 from supabase import Client, create_client
 
-KLUCE = ("SUPABASE_URL", "SUPABASE_KEY")
+# Aplikácia beží na serveri (Streamlit), a preto komunikuje so Supabase cez
+# SERVEROVÝ "secret" kľúč (začína na "sb_secret_"). Ten OBCHÁDZA RLS a NIKDY sa
+# neposiela do prehliadača — je bezpečné ho držať v secretsoch na serveri.
+#
+# Verejný "publishable"/"anon" kľúč (sb_publishable_...) je určený na použitie
+# v klientoch a je verejný. Používame ho len ako NÚDZOVÝ fallback počas prechodu,
+# aby aplikácia nespadla, kým nie je v secretsoch doplnený SUPABASE_SECRET_KEY.
+POVINNY_KLUC = "SUPABASE_URL"
+KLUCE = ("SUPABASE_SECRET_KEY", "SUPABASE_KEY")  # poradie = priorita
+
+
+def _secret(nazov: str) -> str | None:
+    """Bezpečne prečíta hodnotu zo `st.secrets` (nikdy nevyhodí výnimku)."""
+    try:
+        return st.secrets.get(nazov)
+    except Exception:
+        return None
+
+
+def _vybrany_kluc() -> str | None:
+    """Vráti názov použitého kľúča podľa priority (serverový pred verejným)."""
+    for nazov in KLUCE:
+        if _secret(nazov):
+            return nazov
+    return None
 
 
 def chyba_klucov() -> str | None:
@@ -13,19 +37,18 @@ def chyba_klucov() -> str | None:
     (traceback) skôr, než by sa stihla zobraziť táto hláška.
     """
     chybajuce = []
-    for nazov in KLUCE:
-        try:
-            if not st.secrets.get(nazov):
-                chybajuce.append(nazov)
-        except Exception:
-            chybajuce.append(nazov)
+    if not _secret(POVINNY_KLUC):
+        chybajuce.append(POVINNY_KLUC)
+    if _vybrany_kluc() is None:
+        chybajuce.append("SUPABASE_SECRET_KEY")
 
     if not chybajuce:
         return None
     return (
         f"V konfigurácii chýba: **{', '.join(chybajuce)}**.\n\n"
         "Doplň ich do súboru `.streamlit/secrets.toml` (lokálne) alebo do "
-        "**Streamlit Cloud → Settings → Secrets**."
+        "**Streamlit Cloud → Settings → Secrets**. "
+        "`SUPABASE_SECRET_KEY` nájdeš v Supabase → Settings → API Keys."
     )
 
 
@@ -34,8 +57,11 @@ def get_supabase() -> Client:
     """Vráti cachovaného Supabase klienta (kľúče sa čítajú až teraz).
 
     Lokálne: .streamlit/secrets.toml; v produkcii: Streamlit Cloud → Secrets.
+
+    Uprednostní serverový `SUPABASE_SECRET_KEY`; ak chýba, použije `SUPABASE_KEY`.
     """
-    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    nazov = _vybrany_kluc() or "SUPABASE_KEY"
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets[nazov])
 
 
 # ---------------------------------------------------------------------------
