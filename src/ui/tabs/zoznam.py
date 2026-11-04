@@ -614,12 +614,12 @@ def render_kompaktny(supabase, vsetky_stroje: list[dict]) -> None:
     _VOLBA_VSETKY = "— zobraziť všetky stroje —"
     _moznosti: list[str] = [_VOLBA_VSETKY]
     _id_podla_volby: dict[str, object] = {}
-    for _s in sorted(vsetky_stroje, key=lambda s: (s.get("nazov") or "").lower()):
+    for _s in sorted(vsetky_stroje, key=lambda x: (x.get("nazov") or "").lower()):
         _popis = "  •  ".join(
             [
-                (s.get("nazov") or "?").strip(),
-                ((s.get("evidencne_cislo") or "").strip() or "—"),
-                ((s.get("umiestnenie") or "").strip() or "—"),
+                (_s.get("nazov") or "?").strip(),
+                ((_s.get("evidencne_cislo") or "").strip() or "—"),
+                ((_s.get("umiestnenie") or "").strip() or "—"),
             ]
         )
         _moznosti.append(_popis)
